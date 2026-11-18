@@ -1,0 +1,23 @@
+class Counter
+    field value
+    static created
+    :: make ( n -- obj )
+        local o
+        created 1 + to created
+        new Counter to o
+        n o send init
+        o
+    ;
+    : init ( n -- ) n to value ;
+    : toString ( -- s ) "Counter(" value str concat ")" concat ;
+end
+: demo ( -- )
+    local a
+    local b
+    5 Counter.make to a
+    8 Counter.make to b
+    a .o
+    b .o
+    Counter.created .
+;
+demo

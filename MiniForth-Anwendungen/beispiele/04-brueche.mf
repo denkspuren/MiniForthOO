@@ -1,0 +1,109 @@
+# 04 - Bruchrechnung: exakt rechnen ohne Gleitkommazahlen
+# Aufruf: java MiniForth beispiele/04-brueche.mf
+# Ein Bruch ist ein unveraenderliches Objekt; make kuerzt immer.
+
+# >>> bibliothek/arith.mf
+# Bibliothek arith.mf - Division und Rest, gebaut aus +, -, * und <
+# Die Maschine kennt kein / und kein mod. Wir definieren beide selbst,
+# mit denselben Regeln wie Java: Der Quotient wird zur Null hin abgeschnitten,
+# der Rest hat das Vorzeichen des Dividenden.
+
+: abs ( a -- b )   a 0 < if 0 a - else a then ;
+: max ( a b -- m ) a b < if b else a then ;
+
+# Schriftliche Division im Zweiersystem, fuer a >= 0 und b > 0:
+# Erst a durch 2b teilen (rekursiv), dann pruefen, ob noch einmal b hineinpasst.
+: udiv ( a b -- q )
+    local q
+    local r
+    a b < if 0 else
+    a b - b < if 1 else                  # b <= a < 2b
+        a  b b +  udiv to q              # q = a / 2b
+        a  q b b + *  -  to r            # r = a - q * 2b, also 0 <= r < 2b
+        q q +  r b < if 0 else 1 then  +
+    then then
+;
+: / ( a b -- q )
+    b 0 = if "Division durch 0" .s 0 else
+    a 0 <  b 0 <  =  if a abs b abs udiv else 0  a abs b abs udiv  - then then
+;
+: mod ( a b -- r )  a  a b / b *  - ;
+# <<< bibliothek/arith.mf
+
+: gcd ( a b -- g )    b 0 = if a else b  a b mod  gcd then ;   # Euklid
+: digits ( r d k -- s )   # k Nachkommastellen durch schriftliches Dividieren
+    0 k < if  r 10 * d / str   r 10 * d mod  d  k 1 -  digits  concat else "" then
+;
+
+class Frac
+    field n
+    field d
+    : init ( n0 d0 -- self ) n0 to n  d0 to d  this ;
+    :: make ( a b -- f )               # kuerzen, Vorzeichen in den Zaehler
+        local g
+        a abs b abs gcd to g
+        b 0 < if 0 a - g /  0 b - g / else a g /  b g / then
+        new Frac send init
+    ;
+    :: addParts ( a b c e -- f )       # a/b + c/e ueber das kgV der Nenner
+        local g
+        b e gcd to g
+        a e g / *  c b g / *  +   b g / e *  Frac.make
+    ;
+    : num ( -- z )          n ;
+    : den ( -- z )          d ;
+    : plus ( o -- f )       n d  o send num  o send den  Frac.addParts ;
+    : minus ( o -- f )      n d  0 o send num -  o send den  Frac.addParts ;
+    : times ( o -- f )      n o send num *  d o send den *  Frac.make ;
+    : divide ( o -- f )     n o send den *  d o send num *  Frac.make ;
+    : less ( o -- f )       n o send den *  o send num d *  < ;
+    : toString ( -- s )
+        d 1 = if n str else n str "/" concat d str concat then
+    ;
+    : decimal ( k -- s )    # Dezimaldarstellung mit k Stellen
+        n 0 < if "-" else "" then
+        n abs d / str concat  "." concat   n abs d mod  d  k  digits  concat
+    ;
+end
+
+: frac ( a b -- f )   a b Frac.make ;
+: harmonic ( k -- f )   # 1 + 1/2 + ... + 1/k
+    k 0 = if 0 1 frac else  1 k frac  k 1 - harmonic  send plus  then
+;
+: fact ( k -- f )     k 0 = if 1 else k  k 1 - fact  * then ;
+: eSum ( k -- f )     # 1/0! + 1/1! + ... + 1/k!
+    k 0 < if 0 1 frac else  1 k fact frac  k 1 - eSum  send plus  then
+;
+: newton ( x k -- r ) # k Schritte x -> (x + 2/x) / 2
+    x .o
+    k 0 = if x else
+        x  2 1 frac send divide  x send plus  1 2 frac send times
+        k 1 -  newton
+    then
+;
+
+: demo ( -- )
+    local h
+    local e
+    local w
+    "Grundrechenarten:" .s
+    6 8 frac .o
+    2 -4 frac .o
+    1 3 frac  1 2 frac send plus .o          # 1/2 + 1/3
+    3 4 frac  1 2 frac send minus .o         # 1/2 - 3/4
+    2 3 frac  3 4 frac send times .o         # 3/4 * 2/3
+    1 4 frac  1 2 frac send divide .o        # (1/2) / (1/4)
+    3 4 frac  2 3 frac send less .           # 2/3 < 3/4
+    "Harmonische Zahl H(10) = 1 + 1/2 + ... + 1/10:" .s
+    10 harmonic to h
+    h .o
+    6 h send decimal .s
+    "Eulersche Zahl e als Summe 1/0! + 1/1! + ... + 1/12!:" .s
+    12 eSum to e
+    e .o
+    9 e send decimal .s
+    "Wurzel aus 2 nach Newton: x -> (x + 2/x) / 2" .s
+    1 1 frac 4 newton to w
+    11 w send decimal .s
+;
+demo

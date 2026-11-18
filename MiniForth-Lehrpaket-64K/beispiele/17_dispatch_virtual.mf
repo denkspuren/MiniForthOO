@@ -1,0 +1,22 @@
+class Base
+    field n
+    : inc ( -- ) n 1 + to n ;
+    : twice ( -- ) this send inc this send inc ;
+    : read ( -- r ) n ;
+end
+class Child extends Base
+    : inc ( -- ) n 2 + to n ;
+end
+: demo ( -- )
+    local a
+    local b
+    new Base to a
+    new Child to b
+    a send twice
+    b send twice
+    a send read .
+    b send read .
+;
+demo
+see Base.twice
+demo

@@ -1,0 +1,12 @@
+class Point
+    field x
+    field y
+    : init ( a b -- self ) a to x b to y this ;
+    :: make ( a b -- point )
+        local p
+        new Point to p
+        a b p send init
+    ;
+    : toString ( -- s ) "Point(" x str concat "," concat y str concat ")" concat ;
+end
+7 9 Point.make .o

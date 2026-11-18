@@ -1,0 +1,15 @@
+class Box
+    field x
+    static made
+    : init ( n -- self ) n to x this ;
+    :: make ( n -- obj )
+        local obj
+        new Box to obj
+        made 1 + to made
+        n obj send init
+    ;
+    : toString ( -- s ) "Box(" x str concat ")" concat ;
+end
+42 Box.make .o
+13 Box.make .o
+Box.made .

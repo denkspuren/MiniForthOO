@@ -1,0 +1,6 @@
+CALL ip=8195
+  g locals: 9 0 stack:
+  main locals: stack:
+RET ip=3
+  main locals: stack: 18
+18

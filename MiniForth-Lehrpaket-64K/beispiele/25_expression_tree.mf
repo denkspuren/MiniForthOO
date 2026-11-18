@@ -1,0 +1,25 @@
+class Expr end
+class Num extends Expr
+    field value
+    : init ( n -- self ) n to value this ;
+    : eval ( -- n ) value ;
+    : toString ( -- s ) value str ;
+end
+class Add extends Expr
+    field left
+    field right
+    : init ( l r -- self ) l to left r to right this ;
+    : eval ( -- n ) left send eval right send eval + ;
+    : toString ( -- s ) "(" left send toString concat "+" concat right send toString concat ")" concat ;
+end
+: demo ( -- )
+    local a
+    local b
+    local expr
+    2 new Num send init to a
+    3 new Num send init to b
+    a b new Add send init to expr
+    expr send eval .
+    expr .o
+;
+demo

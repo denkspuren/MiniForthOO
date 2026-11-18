@@ -1,0 +1,6 @@
+: storeResult ( n -- result )
+    local saved
+    n 2 * to saved
+    saved n +
+;
+8 storeResult .

@@ -1,0 +1,6 @@
+: pair ( x -- first second )
+    x x 1 +
+;
+: add ( a b -- sum ) a b + ;
+9 pair add .
+see pair

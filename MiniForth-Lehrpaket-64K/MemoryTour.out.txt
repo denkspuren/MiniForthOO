@@ -1,0 +1,47 @@
+MEMORY=65536 DICT=128 HEAP=8192 FRAME=96 STACK=20 fp=65440
+Klassen: Base=8192 Child=8236
+8192  ->  0  Base.SUPER
+8193  ->  1  Base.NFIELDS
+8194  ->  1  Base.NMETHODS
+8195  ->  0  Base.selector[0]
+8196  ->  8227  Base.code[0]
+8236  ->  8192  Child.SUPER
+8237  ->  2  Child.NFIELDS
+8238  ->  2  Child.NMETHODS
+8239  ->  0  Child.selector[0]
+8240  ->  8227  Child.code[0]
+8241  ->  1  Child.selector[1]
+8242  ->  8271  Child.code[1]
+Objektadresse=8286
+8286  ->  8236  Objekt: Klassenzeiger
+8287  ->  0  Objekt: geerbtes x
+8288  ->  0  Objekt: eigenes y
+Frame main=65440 depth=1
+Frame.Stack[0]=8286
+Dictionary.Base.Entry=128 Groesse=9
+128  ->  0  Dictionary.Base.LINK
+129  ->  1  Dictionary.Base.KIND
+130  ->  0  Dictionary.Base.OWNER
+131  ->  8192  Dictionary.Base.VALUE
+132  ->  4  Dictionary.Base.LEN
+Dictionary.Base.Zeichen:
+133  ->  66  Zeichen 'B'
+134  ->  97  Zeichen 'a'
+135  ->  115  Zeichen 's'
+136  ->  101  Zeichen 'e'
+Zeiger: dp=211 here=8289 ctrl=16 dictionary=203
+Methode Base.read @8227
+8227  ->  1  Methode NARGS (this)
+8228  ->  1  Methode NRESULTS
+8229  ->  3  Methode LENGTH
+Bytecode von Base.read:
+Base.read @8227:
+  8230: LOAD 0
+  8232: GETFIELD 0
+  8234: RETURN 0
+65440  ->  0  Frame main OLD_FP
+65441  ->  0  Frame main RET_IP
+65442  ->  0  Frame main FMETHOD
+65443  ->  1  Frame main DEPTH
+65444  ->  0  Frame main LOCAL0
+65460  ->  8286  Frame main STACK0

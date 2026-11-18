@@ -1,0 +1,80 @@
+class C00
+ : u00 ( -- n ) 0 ;
+end
+class C01
+ : u01 ( -- n ) 1 ;
+end
+class C02
+ : u02 ( -- n ) 2 ;
+end
+class C03
+ : u03 ( -- n ) 3 ;
+end
+class C04
+ : u04 ( -- n ) 4 ;
+end
+class C05
+ : u05 ( -- n ) 5 ;
+end
+class C06
+ : u06 ( -- n ) 6 ;
+end
+class C07
+ : u07 ( -- n ) 7 ;
+end
+class C08
+ : u08 ( -- n ) 8 ;
+end
+class C09
+ : u09 ( -- n ) 9 ;
+end
+class C10
+ : u10 ( -- n ) 10 ;
+end
+class C11
+ : u11 ( -- n ) 11 ;
+end
+class C12
+ : u12 ( -- n ) 12 ;
+end
+class C13
+ : u13 ( -- n ) 13 ;
+end
+class C14
+ : u14 ( -- n ) 14 ;
+end
+class C15
+ : u15 ( -- n ) 15 ;
+end
+class C16
+ : u16 ( -- n ) 16 ;
+end
+class C17
+ : u17 ( -- n ) 17 ;
+end
+class C18
+ : u18 ( -- n ) 18 ;
+end
+class C19
+ : u19 ( -- n ) 19 ;
+end
+new C00 send u00 .
+new C01 send u01 .
+new C02 send u02 .
+new C03 send u03 .
+new C04 send u04 .
+new C05 send u05 .
+new C06 send u06 .
+new C07 send u07 .
+new C08 send u08 .
+new C09 send u09 .
+new C10 send u10 .
+new C11 send u11 .
+new C12 send u12 .
+new C13 send u13 .
+new C14 send u14 .
+new C15 send u15 .
+new C16 send u16 .
+new C17 send u17 .
+new C18 send u18 .
+new C19 send u19 .

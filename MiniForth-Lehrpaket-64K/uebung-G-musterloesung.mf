@@ -1,0 +1,14 @@
+class Box
+    field x
+    : set ( n -- ) n to x ;
+    : add ( n -- ) x n + to x ;
+    : toString ( -- s ) "Box(" x str concat ")" concat ;
+end
+: demo ( -- )
+    local box
+    new Box to box
+    3 box send set
+    4 box send add
+    box .o
+;
+demo

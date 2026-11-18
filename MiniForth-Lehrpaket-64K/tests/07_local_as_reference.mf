@@ -1,0 +1,12 @@
+class Cell
+    field value
+    : put ( x -- ) x to value ;
+    : read ( -- x ) value ;
+end
+: demo ( -- n )
+    local cell
+    new Cell to cell
+    21 cell send put
+    cell send read
+;
+demo .

@@ -1,0 +1,6 @@
+: join ( first second -- text )
+    local result
+    first " + " concat to result
+    result second concat
+;
+"a" "b" join .s

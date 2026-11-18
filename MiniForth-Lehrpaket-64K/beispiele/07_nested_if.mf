@@ -1,0 +1,6 @@
+: classify ( n -- result )
+    n 0 < if -1 else n 0 = if 0 else 1 then then
+;
+-3 classify .
+0 classify .
+7 classify .

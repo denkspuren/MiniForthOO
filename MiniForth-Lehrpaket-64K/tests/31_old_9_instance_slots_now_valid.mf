@@ -1,0 +1,7 @@
+class A
+ : f ( a b c d e f g -- x )
+   local extra
+   1
+ ;
+end
+1 2 3 4 5 6 7 new A send f .

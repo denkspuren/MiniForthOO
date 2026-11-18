@@ -1,0 +1,6 @@
+class A
+ : f ( -- x )
+   local this
+   1
+ ;
+end

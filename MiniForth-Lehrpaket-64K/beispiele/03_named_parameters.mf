@@ -1,0 +1,4 @@
+: mixing ( a b -- result )
+    a b + a b * +
+;
+2 3 mixing .

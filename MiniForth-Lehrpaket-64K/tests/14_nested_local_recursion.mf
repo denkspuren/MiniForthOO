@@ -1,0 +1,8 @@
+class Math
+    : count ( n -- r )
+        local a
+        n to a
+        a 0 = if 0 else a 1 - this send count 1 + then
+    ;
+end
+100 new Math send count .

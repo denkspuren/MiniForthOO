@@ -1,0 +1,6 @@
+: triple ( x -- a b c )
+    local answer
+    x 3 * to answer
+    answer answer answer
+;
+5 triple + + .

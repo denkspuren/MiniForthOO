@@ -1,0 +1,9 @@
+: inner ( -- result ) 5 ;
+: outer ( n -- result )
+    local saved
+    n to saved
+    inner saved +
+;
+trace
+7 outer .
+trace

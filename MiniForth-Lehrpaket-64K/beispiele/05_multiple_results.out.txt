@@ -1,0 +1,7 @@
+19
+pair @8192:
+  8195: LOAD 0
+  8197: LOAD 0
+  8199: PUSH 1
+  8201: ADD 0
+  8203: RETURN 0

@@ -1,0 +1,54 @@
+# Bibliothek trig.mf - Sinus und Kosinus mit ganzen Zahlen
+# Benoetigt arith.mf. Winkel in Grad mit beliebigem Vorzeichen,
+# Ergebnis mal 10000: 45 sin liefert 7071 statt 0.7071.
+
+: norm ( deg -- d )      # auf 0 ... 359 bringen
+    deg 0 < if deg 360 + norm else deg 360 < if deg else deg 360 - norm then then
+;
+
+# Bhaskara I. (7. Jahrhundert), gueltig fuer 0 bis 180 Grad:
+# sin x ~ 4x(180 - x) / (40500 - x(180 - x))
+: bhaskara ( d -- s )
+    local p
+    d 180 d - * to p
+    40000 p *  40500 p -  /
+;
+
+# Taylor-Polynom bis x^7 im Horner-Schema, gueltig fuer -90 bis 90 Grad:
+# sin x ~ x (1 - x^2/6 (1 - x^2/20 (1 - x^2/42)))
+# x ist der Winkel im Bogenmass, ebenfalls mal 10000 (pi = 31416).
+: taylor7 ( d -- s )
+    local x
+    local x2
+    local t
+    d 31416 * 180 / to x
+    x x * 10000 / to x2
+    10000  x2 42 /  -  to t
+    10000  x2 t * 10000 / 20 /  -  to t
+    10000  x2 t * 10000 / 6 /  -  to t
+    x t * 10000 /
+;
+
+class Trig                               # cos ist fuer alle Verfahren gleich
+    : cos ( deg -- c )   deg 90 +  this send sin ;
+end
+
+class Bhaskara extends Trig
+    : sin ( deg -- s )
+        local d
+        deg norm to d
+        d 180 < if d bhaskara else 0  d 180 - bhaskara  - then
+    ;
+    : toString ( -- s )  "Bhaskara" ;
+end
+
+class Taylor extends Trig
+    : sin ( deg -- s )
+        local d
+        deg norm to d
+        d 91 < if d taylor7
+        else d 271 < if 180 d - taylor7
+        else d 360 - taylor7 then then
+    ;
+    : toString ( -- s )  "Taylor" ;
+end

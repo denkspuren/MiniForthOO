@@ -1,0 +1,21 @@
+class Fields
+ field f00
+ field f01
+ field f02
+ field f03
+ field f04
+ field f05
+ field f06
+ field f07
+ field f08
+ field f09
+ field f10
+ field f11
+ field f12
+ field f13
+ field f14
+ field f15
+: init ( n -- self ) n to f15 this ;
+: get ( -- n ) f15 ;
+end
+99 new Fields send init send get .

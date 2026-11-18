@@ -1,0 +1,10 @@
+: f ( a b c -- out )
+    local x
+    local y
+    local z
+    a b + to x
+    x c * to y
+    y 1 + to z
+    z
+;
+3 4 5 f .

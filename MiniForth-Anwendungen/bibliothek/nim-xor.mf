@@ -1,0 +1,30 @@
+# Bibliothek nim-xor.mf - die XOR-Strategie (Satz von Bouton, 1901)
+# Benoetigt arith.mf und nim.mf. Eine Stellung ist verloren fuer den,
+# der am Zug ist, wenn das XOR aller Reihen 0 ist.
+
+: xor ( a b -- r )           # aus / und mod gebaut, Bit fuer Bit
+    a b + 0 = if 0 else
+        a 2 mod  b 2 mod  +  2 mod      # letztes Bit
+        a 2 /  b 2 /  xor  2 *  +       # restliche Bits
+    then
+;
+: nimsum ( b i -- s )        i b send length < if  b i sticks  b i 1 + nimsum  xor else 0 then ;
+: xorScan ( b s i -- m )     # erste Reihe, die sich auf (Reihe xor s) verkleinern laesst
+    local n
+    i b send length < if
+        b i sticks to n
+        n s xor  n <
+        if i 8 *  n  n s xor -  +
+        else b s  i 1 +  xorScan then
+    else 0 then
+;
+
+class Xor
+    : wins ( b -- f )        b 0 nimsum  0 = 0 = ;
+    : bestMove ( b -- m )
+        local m
+        b  b 0 nimsum  0 xorScan to m
+        m 0 = if b 0 firstMove else m then
+    ;
+    : toString ( -- s )      "XOR-Strategie" ;
+end

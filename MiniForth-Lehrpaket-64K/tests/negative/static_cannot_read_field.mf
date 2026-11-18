@@ -1,0 +1,4 @@
+class A
+ field x
+ :: f ( -- n ) x ;
+end

@@ -1,0 +1,22 @@
+CALL ip=8195
+  down locals: 2 stack:
+  main locals: stack:
+CALL ip=8195
+  down locals: 1 stack:
+  down locals: 2 stack:
+  main locals: stack:
+CALL ip=8195
+  down locals: 0 stack:
+  down locals: 1 stack:
+  down locals: 2 stack:
+  main locals: stack:
+RET ip=8215
+  down locals: 1 stack: 0
+  down locals: 2 stack:
+  main locals: stack:
+RET ip=8215
+  down locals: 2 stack: 1
+  main locals: stack:
+RET ip=3
+  main locals: stack: 2
+2

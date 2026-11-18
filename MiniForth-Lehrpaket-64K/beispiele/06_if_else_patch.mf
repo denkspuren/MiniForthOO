@@ -1,0 +1,7 @@
+: choose ( n -- result )
+    n 0 =
+    if 10 else 20 then
+;
+see choose
+0 choose .
+1 choose .

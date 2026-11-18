@@ -1,0 +1,4 @@
+: f ( n -- x )
+ local n
+ n
+;

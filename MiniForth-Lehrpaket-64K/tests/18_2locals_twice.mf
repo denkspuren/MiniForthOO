@@ -1,0 +1,10 @@
+class A
+  : test ( n -- result )
+    local tmp
+    local output
+    n n * to tmp
+    tmp 1 + to output
+    output
+  ;
+end
+4 new A send test .

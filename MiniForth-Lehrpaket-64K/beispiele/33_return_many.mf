@@ -1,0 +1,3 @@
+: distribute ( n -- x y z ) n n 2 * n 3 * ;
+: sum3 ( a b c -- n ) a b + c + ;
+5 distribute sum3 .

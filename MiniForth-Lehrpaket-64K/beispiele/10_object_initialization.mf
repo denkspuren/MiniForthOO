@@ -1,0 +1,11 @@
+class Box
+    field value
+    : init ( n -- self ) n to value this ;
+    : get ( -- result ) value ;
+end
+: demo ( -- )
+    local box
+    7 new Box send init to box
+    box send get .
+;
+demo

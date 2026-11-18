@@ -1,0 +1,7 @@
+: reverse ( a b -- first second )
+    local tmp
+    a to tmp
+    b tmp
+;
+: addReversed ( x y -- result ) x y reverse + ;
+3 9 addReversed .

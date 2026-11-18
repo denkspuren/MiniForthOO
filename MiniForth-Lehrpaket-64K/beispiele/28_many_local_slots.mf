@@ -1,0 +1,6 @@
+: demo ( -- result )
+    local a local b local c local d
+    1 to a 2 to b 3 to c 4 to d
+    a b + c + d +
+;
+demo .

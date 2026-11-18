@@ -1,0 +1,20 @@
+: rec ( n -- r )
+ local v00
+ local v01
+ local v02
+ local v03
+ local v04
+ local v05
+ local v06
+ local v07
+ local v08
+ local v09
+ local v10
+ local v11
+ local v12
+ local v13
+ local v14
+ n to v14
+ n 0 = if 0 else n 1 - rec v14 + then
+;
+4 rec .

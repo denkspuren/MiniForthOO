@@ -1,0 +1,36 @@
+# Test fuer / und mod: jede Zeile "a b a/b a mod b"
+# >>> bibliothek/arith.mf
+# Bibliothek arith.mf - Division und Rest, gebaut aus +, -, * und <
+# Die Maschine kennt kein / und kein mod. Wir definieren beide selbst,
+# mit denselben Regeln wie Java: Der Quotient wird zur Null hin abgeschnitten,
+# der Rest hat das Vorzeichen des Dividenden.
+
+: abs ( a -- b )   a 0 < if 0 a - else a then ;
+: max ( a b -- m ) a b < if b else a then ;
+
+# Schriftliche Division im Zweiersystem, fuer a >= 0 und b > 0:
+# Erst a durch 2b teilen (rekursiv), dann pruefen, ob noch einmal b hineinpasst.
+: udiv ( a b -- q )
+    local q
+    local r
+    a b < if 0 else
+    a b - b < if 1 else                  # b <= a < 2b
+        a  b b +  udiv to q              # q = a / 2b
+        a  q b b + *  -  to r            # r = a - q * 2b, also 0 <= r < 2b
+        q q +  r b < if 0 else 1 then  +
+    then then
+;
+: / ( a b -- q )
+    b 0 = if "Division durch 0" .s 0 else
+    a 0 <  b 0 <  =  if a abs b abs udiv else 0  a abs b abs udiv  - then then
+;
+: mod ( a b -- r )  a  a b / b *  - ;
+# <<< bibliothek/arith.mf
+: t ( a b -- )   a str " " concat b str concat " " concat a b / str concat " " concat a b mod str concat .s ;
+: run ( -- )
+    0 1 t  1 1 t  7 2 t  -7 2 t  7 -2 t  -7 -2 t  100 7 t  -100 7 t  99 100 t  -99 100 t
+    123456789 1000 t  -123456789 1000 t  2147483647 1 t  2147483647 2 t  2147483647 46341 t
+    2147483647 2147483647 t  -2147483647 2147483647 t  1073741824 1073741823 t  1073741823 1073741824 t
+    65536 256 t  4900000 65537 t  1302061345 479001600 t  31416 180 t  -31416 180 t  5 7 t  -5 7 t
+;
+run

@@ -1,0 +1,50 @@
+# Bibliothek nim-negamax.mf - Negamax mit Cache wie in nim.java
+# Benoetigt arith.mf, map.mf und nim.mf. Wo Java ein int[4096] als Cache
+# nimmt, nimmt diese Fassung den binaeren Suchbaum aus map.mf.
+# Ein Unterschied mit Absicht: Java legt fuer jeden bestMove-Aufruf einen
+# frischen Cache an und ueberlaesst den alten dem Garbage Collector. MiniForth
+# hat keinen; jeder frische Cache bliebe als Muell im Speicher liegen. Weil sich
+# die Bewertung einer Stellung nie aendert, behalten wir einfach einen Cache.
+
+# key: nichtleere Reihen aufsteigend sortiert, je 3 Bit. Statt die Reihen zu
+# kopieren und zu sortieren, zaehlen wir fuer v = 1 ... 7, wie oft v vorkommt.
+: appendN ( acc v c -- k )  c 0 = if acc else  acc 8 * v +  v  c 1 -  appendN then ;
+: keyFrom ( b v acc -- k )
+    v 8 < if  b  v 1 +  acc v  v b send count  appendN  keyFrom else acc then
+;
+: key ( b -- k )            b 1 0 keyFrom ;
+
+class Negamax
+    static cache             # statisch, damit man von aussen hineinschauen kann
+    : value ( b -- v )       # negamax(cache, board): 1 gewonnen, -1 verloren
+        local v
+        b gameOver if -1 else
+            b key cache send get to v
+            v 0 = if
+                b 0  b 0 sticks  this send scan  0 = if -1 else 1 then  to v
+                b key v cache send put to cache
+            then
+            v
+        then
+    ;
+    : scan ( b i k -- m )    # erster Zug ab Reihe i mit k Sticks, nach dem der Gegner verliert
+        local v
+        i b send length < if
+            k 0 = if  b  i 1 +  b i 1 + sticks  this send scan
+            else
+                b i 0 k - change                  # move
+                b this send value to v            # negamax
+                b i k change                      # undo
+                v -1 = if i 8 * k + else b i  k 1 -  this send scan then
+            then
+        else 0 then
+    ;
+    : bestMove ( b -- m )    # wie bestMove in nim.java
+        local m
+        b 0  b 0 sticks  this send scan to m
+        m 0 = if b 0 firstMove else m then
+    ;
+    : wins ( b -- f )        b this send value  1 = ;
+    : toString ( -- s )      "Negamax mit Suchbaum-Cache" ;
+end
+new Leaf to Negamax.cache

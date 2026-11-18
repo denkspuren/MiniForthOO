@@ -1,0 +1,8 @@
+class Calc
+    :: twiceSum ( a b -- n )
+        local sum
+        a b + to sum
+        sum sum +
+    ;
+end
+5 9 Calc.twiceSum .

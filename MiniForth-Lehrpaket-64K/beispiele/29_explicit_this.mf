@@ -1,0 +1,12 @@
+class C
+    field x
+    : change ( x -- ) x to this.x ;
+    : read ( -- n ) this.x ;
+end
+: demo ( -- )
+    local c
+    new C to c
+    33 c send change
+    c send read .
+;
+demo

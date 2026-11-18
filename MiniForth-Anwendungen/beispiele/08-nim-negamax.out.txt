@@ -1,0 +1,45 @@
+Negamax mit Suchbaum-Cache
+0: I I
+1: I I I
+2: I I I I
+3: I I I I I
+Schluessel der Stellung, oktal 2345:
+1253
+Dies ist eine Verlustposition. Bei perfektem Gegenspiel gibt es keinen Gewinnzug.
+Vorschlag: Entferne 5 Sticks aus Reihe 3.
+0:
+1: I I I
+2: I I I I
+3: I I I I I
+Computer entfernt 2 Sticks aus Reihe 1.
+0:
+1: I
+2: I I I I
+3: I I I I I
+Dies ist eine Verlustposition. Bei perfektem Gegenspiel gibt es keinen Gewinnzug.
+Vorschlag: Entferne 1 Stick aus Reihe 3.
+Ungueltiger Zug
+0:
+1: I
+2: I I I I
+3: I I I I I
+0:
+1: I
+2: I I I I
+3:
+Computer entfernt 3 Sticks aus Reihe 2.
+0:
+1: I
+2: I
+3:
+0:
+1:
+2: I
+3:
+Computer entfernt 1 Stick aus Reihe 2.
+0:
+1:
+2:
+3:
+Computer gewinnt!
+Das Spiel ist bereits beendet.

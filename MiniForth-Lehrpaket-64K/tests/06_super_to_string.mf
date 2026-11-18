@@ -1,0 +1,8 @@
+class A
+    : toString ( -- s ) "A" ;
+end
+class B extends A
+    : toString ( -- s ) "B(" super toString concat ")" concat ;
+end
+new A .o
+new B .o

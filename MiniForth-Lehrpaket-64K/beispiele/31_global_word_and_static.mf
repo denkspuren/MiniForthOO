@@ -1,0 +1,5 @@
+: triple ( n -- r ) n 3 * ;
+class Math
+    :: run ( n -- r ) n triple ;
+end
+6 Math.run .

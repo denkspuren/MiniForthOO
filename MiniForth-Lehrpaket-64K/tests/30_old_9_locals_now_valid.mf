@@ -1,0 +1,13 @@
+: f ( -- x )
+ local a
+ local b
+ local c
+ local d
+ local e
+ local f
+ local g
+ local h
+ local i
+ 3
+;
+f .

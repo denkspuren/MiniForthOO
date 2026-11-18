@@ -1,0 +1,7 @@
+class Box
+    field x
+    : read ( -- r ) x ;
+    : set ( n -- ) n to x ;
+end
+see Box.read
+see Box.set

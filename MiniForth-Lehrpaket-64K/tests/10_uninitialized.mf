@@ -1,0 +1,2 @@
+: readZero ( -- n ) local x x ;
+readZero .

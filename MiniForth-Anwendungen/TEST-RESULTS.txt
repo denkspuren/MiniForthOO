@@ -1,0 +1,23 @@
+Testlauf 2026-11-17 23:42, openjdk version "21.0.12.1" 2026-08-18, Python 3.13.18
+
+ok      Bibliotheksbloecke aktuell  (Bibliotheksbloecke aktuell)
+ok      Beispiel 01-liste.mf  (18 Zeilen)
+ok      Beispiel 02-ausdrucksbaum.mf  (17 Zeilen)
+ok      Beispiel 03-division.mf  (11 Zeilen)
+ok      Beispiel 04-brueche.mf  (21 Zeilen)
+ok      Beispiel 05-trigonometrie.mf  (24 Zeilen)
+ok      Beispiel 06-turtle.mf  (4449 Zeilen)
+ok      Beispiel 07-nim-xor.mf  (45 Zeilen)
+ok      Beispiel 08-nim-negamax.mf  (45 Zeilen)
+ok      Beispiel 09-nim-vergleich.mf  (11 Zeilen)
+ok      Nim interaktiv ueber die Standardeingabe
+ok      Division und Rest wie in Java  (26 Faelle)
+ok      Sinus und Kosinus gegen math.sin/cos  (groesster Fehler Bhaskara 0.00159, Taylor 0.00023)
+ok      Brueche gegen fractions.Fraction
+ok      Ausdrucksbaum: Werte und Ableitungen
+ok      SVG wohlgeformt, 4 Pfade, Koordinaten im Bild  (1474 Linien)
+ok      Nim-Zaehlungen gegen Python-Minimax  (2871 Bretter, 222 Stellungen)
+ok      Nim gegen nim.java (Negamax)  (2870 Bretter: Zug, Bewertung, Schluessel)
+ok      Nim gegen nim.java (Xor)  (2870 Bretter: Zug, Bewertung, Schluessel)
+
+Gesamt: 19/19 bestanden

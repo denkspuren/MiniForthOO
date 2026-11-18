@@ -1,0 +1,10 @@
+: distribute ( a b -- x y z ) a b a ;
+: work ( -- n )
+    local left
+    local right
+    8 13 distribute
+    to left
+    to right
+    left right + +
+;
+work .

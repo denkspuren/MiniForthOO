@@ -1,0 +1,8 @@
+: helper ( n -- r )
+    local tmp
+    n 3 * to tmp
+    tmp 2 +
+;
+trace
+4 helper .
+trace

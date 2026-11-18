@@ -1,0 +1,18 @@
+class Leaf
+  field n
+  : init ( x -- self ) x to n this ;
+  : read ( -- n ) n ;
+end
+class Node
+  field child
+  : init ( c -- self ) c to child this ;
+  : read ( -- x ) child send read ;
+end
+: demo ( -- result )
+  local l
+  local node
+  43 new Leaf send init to l
+  l new Node send init to node
+  node send read
+;
+demo .

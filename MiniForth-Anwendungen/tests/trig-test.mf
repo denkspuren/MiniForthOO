@@ -1,0 +1,96 @@
+# Test fuer trig.mf: je Winkel fuenf Zahlen "Grad sinB sinT cosB cosT" fuer -360 ... 360,
+# jede auf einer eigenen Zeile (sonst liefe der String-Pool ueber)
+# >>> bibliothek/arith.mf
+# Bibliothek arith.mf - Division und Rest, gebaut aus +, -, * und <
+# Die Maschine kennt kein / und kein mod. Wir definieren beide selbst,
+# mit denselben Regeln wie Java: Der Quotient wird zur Null hin abgeschnitten,
+# der Rest hat das Vorzeichen des Dividenden.
+
+: abs ( a -- b )   a 0 < if 0 a - else a then ;
+: max ( a b -- m ) a b < if b else a then ;
+
+# Schriftliche Division im Zweiersystem, fuer a >= 0 und b > 0:
+# Erst a durch 2b teilen (rekursiv), dann pruefen, ob noch einmal b hineinpasst.
+: udiv ( a b -- q )
+    local q
+    local r
+    a b < if 0 else
+    a b - b < if 1 else                  # b <= a < 2b
+        a  b b +  udiv to q              # q = a / 2b
+        a  q b b + *  -  to r            # r = a - q * 2b, also 0 <= r < 2b
+        q q +  r b < if 0 else 1 then  +
+    then then
+;
+: / ( a b -- q )
+    b 0 = if "Division durch 0" .s 0 else
+    a 0 <  b 0 <  =  if a abs b abs udiv else 0  a abs b abs udiv  - then then
+;
+: mod ( a b -- r )  a  a b / b *  - ;
+# <<< bibliothek/arith.mf
+# >>> bibliothek/trig.mf
+# Bibliothek trig.mf - Sinus und Kosinus mit ganzen Zahlen
+# Benoetigt arith.mf. Winkel in Grad mit beliebigem Vorzeichen,
+# Ergebnis mal 10000: 45 sin liefert 7071 statt 0.7071.
+
+: norm ( deg -- d )      # auf 0 ... 359 bringen
+    deg 0 < if deg 360 + norm else deg 360 < if deg else deg 360 - norm then then
+;
+
+# Bhaskara I. (7. Jahrhundert), gueltig fuer 0 bis 180 Grad:
+# sin x ~ 4x(180 - x) / (40500 - x(180 - x))
+: bhaskara ( d -- s )
+    local p
+    d 180 d - * to p
+    40000 p *  40500 p -  /
+;
+
+# Taylor-Polynom bis x^7 im Horner-Schema, gueltig fuer -90 bis 90 Grad:
+# sin x ~ x (1 - x^2/6 (1 - x^2/20 (1 - x^2/42)))
+# x ist der Winkel im Bogenmass, ebenfalls mal 10000 (pi = 31416).
+: taylor7 ( d -- s )
+    local x
+    local x2
+    local t
+    d 31416 * 180 / to x
+    x x * 10000 / to x2
+    10000  x2 42 /  -  to t
+    10000  x2 t * 10000 / 20 /  -  to t
+    10000  x2 t * 10000 / 6 /  -  to t
+    x t * 10000 /
+;
+
+class Trig                               # cos ist fuer alle Verfahren gleich
+    : cos ( deg -- c )   deg 90 +  this send sin ;
+end
+
+class Bhaskara extends Trig
+    : sin ( deg -- s )
+        local d
+        deg norm to d
+        d 180 < if d bhaskara else 0  d 180 - bhaskara  - then
+    ;
+    : toString ( -- s )  "Bhaskara" ;
+end
+
+class Taylor extends Trig
+    : sin ( deg -- s )
+        local d
+        deg norm to d
+        d 91 < if d taylor7
+        else d 271 < if 180 d - taylor7
+        else d 360 - taylor7 then then
+    ;
+    : toString ( -- s )  "Taylor" ;
+end
+# <<< bibliothek/trig.mf
+class T static b static t end
+new Bhaskara to T.b
+new Taylor to T.t
+: all ( a z -- )        # in Stuecken, damit die Rekursion flach bleibt
+    a z 1 + < if
+        a .  a T.b send sin .  a T.t send sin .  a T.b send cos .  a T.t send cos .
+        a 1 + z all
+    then
+;
+-360 -271 all  -270 -181 all  -180 -91 all  -90 -1 all
+0 89 all  90 179 all  180 269 all  270 360 all

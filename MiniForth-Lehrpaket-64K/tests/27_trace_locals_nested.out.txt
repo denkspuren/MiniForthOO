@@ -1,0 +1,13 @@
+CALL ip=8202
+  outer locals: 7 0 stack:
+  main locals: stack:
+CALL ip=8195
+  inner locals: stack:
+  outer locals: 7 7 stack:
+  main locals: stack:
+RET ip=8208
+  outer locals: 7 7 stack: 5
+  main locals: stack:
+RET ip=3
+  main locals: stack: 12
+12

@@ -1,0 +1,3 @@
+Counter(5)
+Counter(8)
+2

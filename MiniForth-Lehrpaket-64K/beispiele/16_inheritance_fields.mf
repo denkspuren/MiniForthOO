@@ -1,0 +1,19 @@
+class Base
+    field a
+    field b
+    : setBase ( x y -- ) x to a y to b ;
+    : baseSum ( -- s ) a b + ;
+end
+class Child extends Base
+    field c
+    : setC ( x -- ) x to c ;
+    : total ( -- s ) this send baseSum c + ;
+end
+: demo ( -- )
+    local o
+    new Child to o
+    3 4 o send setBase
+    5 o send setC
+    o send total .
+;
+demo

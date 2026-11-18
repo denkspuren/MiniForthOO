@@ -1,0 +1,17 @@
+class Base
+    field n
+    : inc ( -- ) n 1 + to n ;
+    : read ( -- x ) n ;
+end
+class Child extends Base
+    : inc ( -- ) super inc super inc ;
+end
+: demo ( -- )
+    local o
+    new Child to o
+    o send inc
+    o send read .
+;
+demo
+see Child.inc
+demo

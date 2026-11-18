@@ -1,0 +1,29 @@
+class List
+end
+class Nil extends List
+    : sum ( -- n ) 0 ;
+    : length ( -- n ) 0 ;
+    : toString ( -- s ) "Nil" ;
+end
+class Cons extends List
+    field head
+    field tail
+    :: make ( h t -- o ) h t new Cons send init ;
+    : init ( h t -- self ) h to head t to tail this ;
+    : sum ( -- n ) head tail send sum + ;
+    : length ( -- n ) tail send length 1 + ;
+    : toString ( -- s )
+        "Cons(" head str concat "," concat
+        tail send toString concat ")" concat
+    ;
+end
+: demo ( -- )
+    local list
+    3 new Nil Cons.make to list
+    2 list Cons.make to list
+    1 list Cons.make to list
+    list send sum .
+    list send length .
+    list .o
+;
+demo

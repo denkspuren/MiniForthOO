@@ -1,0 +1,8 @@
+Animal
+Cat: Animal
+Cat.toString @8269:
+  8272: STR 2
+  8274: LOAD 0
+  8276: INVOKESPECIAL 8227
+  8278: STRCAT 0
+  8280: RETURN 0

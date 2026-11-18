@@ -1,0 +1,12 @@
+class Box
+    field x
+    field y
+    : init ( x0 y0 -- self ) x0 to x y0 to y this ;
+    : sum ( -- result ) x y + ;
+end
+: demo ( -- )
+    local box
+    3 4 new Box send init to box
+    box send sum .
+;
+demo

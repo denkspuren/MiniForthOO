@@ -1,0 +1,24 @@
+class Parent
+ : m00 ( -- n ) 0 ;
+ : m01 ( -- n ) 1 ;
+ : m02 ( -- n ) 2 ;
+ : m03 ( -- n ) 3 ;
+ : m04 ( -- n ) 4 ;
+ : m05 ( -- n ) 5 ;
+ : m06 ( -- n ) 6 ;
+ : m07 ( -- n ) 7 ;
+ : m08 ( -- n ) 8 ;
+ : m09 ( -- n ) 9 ;
+ : m10 ( -- n ) 10 ;
+ : m11 ( -- n ) 11 ;
+ : m12 ( -- n ) 12 ;
+ : m13 ( -- n ) 13 ;
+ : m14 ( -- n ) 14 ;
+end
+class Child extends Parent
+ : m00 ( -- n ) 100 ;
+ : m15 ( -- n ) 15 ;
+end
+new Child send m00 .
+new Child send m14 .
+new Child send m15 .

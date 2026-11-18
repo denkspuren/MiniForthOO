@@ -1,0 +1,12 @@
+class A
+    static made
+    :: create ( -- o ) made 1 + to made new A ;
+end
+class B extends A end
+: demo ( -- )
+    local a
+    A.create to a
+    A.made .
+    B.made .
+;
+demo

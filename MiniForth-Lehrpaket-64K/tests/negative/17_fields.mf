@@ -1,0 +1,19 @@
+class Bad
+ field a0
+ field a1
+ field a2
+ field a3
+ field a4
+ field a5
+ field a6
+ field a7
+ field a8
+ field a9
+ field a10
+ field a11
+ field a12
+ field a13
+ field a14
+ field a15
+ field a16
+end

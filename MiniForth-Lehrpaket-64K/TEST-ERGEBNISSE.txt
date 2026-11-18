@@ -1,0 +1,10 @@
+MiniForth 64K – Lehrpaket einschließlich Speicherlupe
+==================================================
+Quellcode: MiniForth.java, 300 physische Zeilen, --release 8 erfolgreich
+Lehrbeispiele: 35 / 35, bytegenau gegen *.out.txt
+Speicherlupe: MemoryTour.java, bytegenau gegen MemoryTour.out.txt
+Interne Speicherprüfungen: 24 / 24
+Regressionsprogramme: 43 positive / 43 und 23 erwartete Fehler / 23
+Erweiterte Konfiguration: 24/24/24 mit 20 Methoden, Feldern und lokalen Slots erfolgreich
+Quarto: .qmd strukturell geprüft, vollständige Quarto-CLI nicht installiert
+HTML-Vorschau: mit Pandoc gerendert (kein offizielles Quarto-Rendering)

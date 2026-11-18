@@ -1,0 +1,5 @@
+# Erste Worte: der Stack wird nur intern gebraucht.
+2 3 + .
+10 3 - .
+4 7 < .
+5 5 = .

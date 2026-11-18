@@ -1,0 +1,50 @@
+# Bibliothek turtle.mf - Turtle-Grafik mit SVG-Ausgabe
+# Benoetigt arith.mf und trig.mf. Koordinaten intern mal 10000, damit sich
+# Rundungsfehler nicht aufsummieren.
+#
+# Ausgabetrick: Jedes str und concat legt einen Eintrag im String-Pool an
+# (hoechstens 1023). Koordinaten werden deshalb nie zu Strings verbunden,
+# sondern mit . als Zahl ausgegeben, jede auf einer eigenen Zeile. In einem
+# SVG-Pfad ist ein Zeilenumbruch einfach Leerraum.
+
+: round ( v -- p )   v 0 < if v 5000 - else v 5000 + then  10000 / ;
+
+class Turtle
+    field x
+    field y
+    field heading                          # Grad, 0 = nach rechts, positiv = links herum
+    field trig                             # Bhaskara oder Taylor
+    field pen
+    : init ( x0 y0 t -- self )
+        x0 10000 * to x  y0 10000 * to y  0 to heading  t to trig  1 to pen  this
+    ;
+    : point ( -- )      x round .  y round . ;
+    : start ( color -- )                   # einen Pfad beginnen
+        "<path fill='none' stroke='" color concat "' d='" concat .s
+        "M" .s  this send point
+    ;
+    : finish ( -- )     "'/>" .s ;
+    : up ( -- )         0 to pen ;
+    : down ( -- )       1 to pen ;
+    : turn ( deg -- )   heading deg + norm to heading ;    # -360 ... +360 und mehr
+    : forward ( len -- )
+        x  len heading trig send cos *  +  to x
+        y  len heading trig send sin *  -  to y     # SVG: y waechst nach unten
+        pen if "L" else "M" then .s  this send point
+    ;
+    : toString ( -- s )
+        "Turtle bei " x round str concat "," concat y round str concat
+        ", Richtung " concat heading str concat " Grad, " concat trig send toString concat
+    ;
+end
+
+: svgOpen ( w h -- )
+    "<svg xmlns='http://www.w3.org/2000/svg' width='" w str concat
+    "' height='" concat h str concat "'>" concat .s
+    "<rect width='100%' height='100%' fill='white'/>" .s
+;
+: svgClose ( -- )    "</svg>" .s ;
+: label ( x y text -- )
+    "<text x='" x str concat "' y='" concat y str concat
+    "' font-family='sans-serif' font-size='16'>" concat text concat "</text>" concat .s
+;

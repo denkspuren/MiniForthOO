@@ -1,0 +1,9 @@
+: choose ( n -- r )
+   local output
+   n 0 = if 10 to output
+   else n 1 = if 20 to output else 30 to output then then
+   output
+;
+0 choose .
+1 choose .
+7 choose .

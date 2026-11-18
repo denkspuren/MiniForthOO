@@ -1,0 +1,11 @@
+# Alte Shuffle-Namen sind nicht mehr reserviert: normale Variablennamen.
+: combine ( swap -- r )
+    local dup
+    swap 2 * to dup
+    dup 1 +
+;
+7 combine .
+
+# Sie koennen als selbst definierte Woerter benutzt werden, ohne Primitiv-Status.
+: rot ( x -- y ) x 3 * ;
+4 rot .

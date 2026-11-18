@@ -1,0 +1,7 @@
+: f ( n -- r )
+   local temp
+   n n * to temp
+   temp 1 +
+;
+see f
+5 f .

@@ -1,0 +1,5 @@
+square @8192:
+  8195: LOAD 0
+  8197: LOAD 0
+  8199: MUL 0
+  8201: RETURN 0

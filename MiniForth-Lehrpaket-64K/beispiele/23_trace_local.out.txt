@@ -1,0 +1,6 @@
+CALL ip=8195
+  helper locals: 4 0 stack:
+  main locals: stack:
+RET ip=3
+  main locals: stack: 14
+14

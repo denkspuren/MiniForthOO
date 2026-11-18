@@ -1,0 +1,12 @@
+class Box
+    field n
+    : set ( n -- ) n to this.n ;
+    : read ( -- n ) n ;
+end
+: test ( -- n )
+    local b
+    new Box to b
+    42 b send set
+    b send read
+;
+test .

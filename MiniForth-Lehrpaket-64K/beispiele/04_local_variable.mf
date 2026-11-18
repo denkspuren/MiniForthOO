@@ -1,0 +1,7 @@
+: test ( x -- result )
+    local twice
+    x 2 * to twice
+    twice 1 +
+;
+see test
+7 test .

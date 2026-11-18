@@ -1,0 +1,27 @@
+:root { --navy:#182a3d; --teal:#087f75; --soft:#f5f8fb; --line:#dce5ee; }
+html { scroll-behavior:smooth; }
+body { max-width: 980px; margin: 3.3rem auto 7rem; padding: 0 1.8rem; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; line-height:1.67; color:var(--navy); font-size:16px; }
+h1 { color:var(--navy); margin-top:3.2rem; padding-bottom:.4rem; border-bottom:2px solid var(--teal); }
+h2 { color:var(--teal); margin-top:2.3rem; }
+h3 { color:#334c67; margin-top:1.8rem; }
+#title-block-header h1 { border:0; font-size:2.4rem; margin:0; }
+#title-block-header .subtitle { font-size:1.18rem; color:#60758a; }
+#TOC { background:var(--soft); border:1px solid var(--line); padding:1.3rem 1.8rem; border-radius:10px; margin:2.2rem 0; }
+#TOC a { color:#0c6e6c; text-decoration:none; }
+#TOC ul { padding-left:1.6rem; }
+a { color:#087f75; }
+a:hover { text-decoration:underline; }
+pre { background:#172a3b; color:#ecf4f8; padding:1rem 1.3rem; overflow-x:auto; border-radius:9px; line-height:1.45; font-size:.88rem; }
+pre code { color:inherit; background:none; border:none; padding:0; }
+code { color:#204a68; background:#edf3f7; padding:.1em .27em; border-radius:4px; font-size:.92em; }
+table { border-collapse:collapse; width:100%; margin:1.4rem 0; font-size:.92rem; }
+th { background:#e6f2f0; text-align:left; color:#154c48; }
+th,td { border:1px solid var(--line); padding:.51rem .65rem; vertical-align:top; }
+tr:nth-child(even) td { background:#f8fafc; }
+.callout-important,.callout-tip,.callout-note,.callout-warning { margin:1.7rem 0; padding:.9rem 1.4rem; border-radius:7px; border-left:4px solid var(--teal); background:#eaf5f2; }
+.callout-warning { border-color:#c5912d; background:#fff7e7; }
+.callout-important { border-color:#465f90; background:#edf2fc; }
+.callout-note { border-color:#72899f; background:#f0f4f7; }
+.callout-important p:first-child,.callout-tip p:first-child,.callout-note p:first-child { margin-top:0; }
+blockquote { margin:1.7rem 0; border-left:3px solid var(--teal); padding:.5rem 1rem; background:var(--soft); }
+@media print { body { max-width:none; margin:0; padding:0; font-size:11pt; } #TOC { break-after:page; } a { color:inherit; } pre,table { break-inside:avoid; } h1,h2,h3 { break-after:avoid; } }

@@ -1,0 +1,18 @@
+class Animal
+  field age
+  : init ( n -- self ) n to age this ;
+  : describe ( -- s ) "Animal(" age str concat ")" concat ;
+  : toString ( -- s ) this send describe ;
+end
+class Dog extends Animal
+  : describe ( -- s ) "Dog: " super describe concat ;
+end
+: demo ( -- )
+  local a
+  local d
+  4 new Animal send init to a
+  6 new Dog send init to d
+  a .o
+  d .o
+;
+demo

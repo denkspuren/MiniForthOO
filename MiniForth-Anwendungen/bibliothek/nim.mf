@@ -1,0 +1,106 @@
+# Bibliothek nim.mf - Spielbrett und Spielablauf nach nim.java
+# Benoetigt arith.mf.
+# Normales Nim: Ein Zug nimmt mindestens einen Stick aus genau einer Reihe.
+# Wer den letzten Stick nimmt, gewinnt. Reihen werden ab 0 gezaehlt.
+# Hoechstens 16 Sticks, hoechstens 7 je Reihe, hoechstens 4 nichtleere Reihen.
+#
+# MiniForth hat kein int[]. Das Brett ist deshalb eine verkettete Liste von
+# Reihen mit Indexzugriff: at liest, change veraendert eine Reihe.
+# Ein Zug wird als eine Zahl kodiert: 8 * Reihe + Anzahl.
+
+: bars ( k -- s )   0 k < if " I" k 1 - bars concat else "" then ;
+
+class Row
+    field n
+    field next
+    : init ( n0 rest -- self ) n0 to n  rest to next  this ;
+    : at ( i -- k )          i 0 = if n else i 1 -  next send at then ;
+    : change ( i d -- )      i 0 = if n d + to n else i 1 - d  next send change then ;
+    : length ( -- l )        next send length  1 + ;
+    : total ( -- s )         next send total  n + ;
+    : count ( v -- c )       v next send count  n v =  + ;     # Reihen mit genau v Sticks
+    : show ( i -- )          i str ":" concat  n bars concat .s   i 1 +  next send show ;
+    : toString ( -- s )      n str  next send rest concat ;
+    : rest ( -- s )          " " n str concat  next send rest concat ;
+end
+
+class End
+    : at ( i -- k )          0 ;
+    : change ( i d -- )      ;
+    : length ( -- l )        0 ;
+    : total ( -- s )         0 ;
+    : count ( v -- c )       0 ;
+    : show ( i -- )          ;
+    : toString ( -- s )      "" ;
+    : rest ( -- s )          "" ;
+end
+
+class Nim                    # nur statische Variablen: das laufende Spiel
+    static board
+    static engine            # Strategie: Xor oder Negamax
+    static seed              # Zustand des Zufallsgenerators
+end
+1 to Nim.seed
+
+# ---------- Brett: entspricht init, isValid, show, move, undo, gameOver ----------
+: leer ( -- b )             new End ;
+: row ( n rest -- b )       n rest new Row send init ;    # 2 3 4 5 leer row row row row
+: sticks ( b i -- k )       i b send at ;                 # board[i]
+: change ( b i d -- )       i d b send change ;
+: numberOfSticks ( b -- s ) b send total ;
+: gameOver ( b -- f )       b send total 0 = ;
+: inRange ( b v -- c )      # Anzahl der Reihen mit v ... 7 Sticks
+    v 8 < if  v b send count  b v 1 + inRange  + else 0 then
+;
+: isValid ( b -- f )
+    0 b send length <                         # mindestens eine Reihe
+    b 0 inRange  b send length =  *           # jede Reihe hat 0 bis 7 Sticks
+    b send total 17 <  *                      # hoechstens 16 Sticks
+    b send length  0 b send count  -  5 <  *  # hoechstens 4 nichtleere Reihen
+;
+: init ( b -- b )           b isValid 0 = if "Ungueltiges Spielfeld" .s then b ;
+: show ( b -- )             0 b send show ;
+: move ( b r k -- b )
+    -1 r <  r b send length <  *   0 k <  *   k  b r sticks 1 +  <  *
+    if b r 0 k - change else "Ungueltiger Zug" .s then  b
+;
+: undo ( b r k -- b )       b r k change  b ;
+: board ( -- b )            Nim.board ;
+: neu ( b -- )              b init to Nim.board  board show ;
+
+# ---------- Zuege ----------
+: firstMove ( b i -- m )    # legalMoves[0]: erste nichtleere Reihe, alle Sticks
+    0 b i sticks < if i 8 *  b i sticks + else b i 1 + firstMove then
+;
+: nthMove ( b i j -- m )    # j-ter Zug in der Reihenfolge von moves()
+    j  b i sticks  < if i 8 *  b i sticks j -  + else b  i 1 +  j b i sticks -  nthMove then
+;
+: random ( n -- r )         # linearer Kongruenzgenerator des ZX81
+    Nim.seed 75 * 74 +  65537 mod  to Nim.seed   Nim.seed n mod
+;
+
+# ---------- Spielablauf: entspricht play und help ----------
+: plural ( k -- s )         1 k < if " Sticks" else " Stick" then ;
+: describe ( m -- s )       # "2 Sticks aus Reihe 1."
+    m 8 mod str  m 8 mod plural concat  " aus Reihe " concat  m 8 / str concat  "." concat
+;
+: doPlay ( b m -- )
+    b  m 8 /  m 8 mod  move to b                  # move liefert das Brett zurueck, wie in Java
+    "Computer entfernt " m describe concat .s
+    b show
+    b gameOver if "Computer gewinnt!" .s then
+;
+: play ( b -- )
+    b gameOver if "Das Spiel ist bereits beendet." .s
+    else b  b Nim.engine send bestMove  doPlay then
+;
+: help ( b -- )
+    b gameOver if "Das Spiel ist bereits beendet." .s
+    else b Nim.engine send wins if
+        "Dies ist eine Gewinnposition." .s
+        "Vorschlag: Entferne "  b Nim.engine send bestMove describe  concat .s
+    else
+        "Dies ist eine Verlustposition. Bei perfektem Gegenspiel gibt es keinen Gewinnzug." .s
+        "Vorschlag: Entferne "  b 0  b numberOfSticks random  nthMove describe  concat .s
+    then then
+;

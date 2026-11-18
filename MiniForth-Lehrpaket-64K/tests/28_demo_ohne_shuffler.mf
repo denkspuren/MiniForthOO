@@ -1,0 +1,53 @@
+# Alte MiniForth-Demo im neuen Stil: keine DUP/DROP/SWAP.
+class Counter
+    field value
+    static created
+    :: make ( -- c ) created 1 + to created new Counter ;
+    : inc ( -- ) value 1 + to value ;
+    : twice ( -- ) this send inc this send inc ;
+    : read ( -- n ) value ;
+    : toString ( -- s ) "Counter(" value str concat ")" concat ;
+end
+class DoubleCounter extends Counter
+    :: make ( -- c ) created 1 + to created new DoubleCounter ;
+    : inc ( -- ) super inc super inc ;
+end
+: counterDemo ( -- )
+    local first
+    local second
+    Counter.make to first
+    DoubleCounter.make to second
+    first send twice
+    second send twice
+    first send read .
+    second send read .
+    Counter.created .
+    DoubleCounter.created .
+    first .o
+    second .o
+;
+class Point
+    field x
+    : init ( x0 -- self ) x0 to x this ;
+    : getX ( -- n ) x ;
+    : plus ( other -- n ) other send getX x + ;
+end
+: pointDemo ( -- )
+    local p
+    local q
+    7 new Point send init to p
+    5 new Point send init to q
+    q p send plus .
+;
+class Math
+    :: add ( a b -- sum ) a b + ;
+    :: fact ( n -- f ) n 1 < if 1 else n n 1 - Math.fact * then ;
+end
+counterDemo
+pointDemo
+3 7 Math.add .
+5 Math.fact .
+see Counter.twice
+trace
+3 Math.fact .
+trace

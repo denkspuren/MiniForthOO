@@ -1,0 +1,12 @@
+class Box
+    field x
+    : set ( x -- ) x to this.x ;
+    : toString ( -- s ) "Box(" x str concat ")" concat ;
+end
+: demo ( -- )
+    local b
+    new Box to b
+    9 b send set
+    b .o
+;
+demo

@@ -1,0 +1,124 @@
+# 02 - Ein Ausdrucksbaum: auswerten, ausgeben, ableiten, vereinfachen
+# Aufruf: java MiniForth beispiele/02-ausdrucksbaum.mf
+# Der Quelltext ist schon Postfix: Wer den Baum aufbaut, schreibt den
+# Ausdruck in umgekehrter polnischer Notation hin.
+
+: is ( e k -- f )   e send isConst  e send value k =  * ;   # e ist die Konstante k
+
+class Expr                       # Vorgaben, die Unterklassen ueberschreiben
+    : isConst ( -- f ) 0 ;
+    : value ( -- n )   0 ;
+end
+
+class Num extends Expr
+    field n
+    : init ( n0 -- self ) n0 to n  this ;
+    : isConst ( -- f )    1 ;
+    : value ( -- v )      n ;
+    : eval ( x -- v )     n ;
+    : derive ( -- e )     0 new Num send init ;
+    : simplify ( -- e )   this ;
+    : toString ( -- s )   n str ;
+end
+
+class Var extends Expr
+    : eval ( x -- v )     x ;
+    : derive ( -- e )     1 new Num send init ;
+    : simplify ( -- e )   this ;
+    : toString ( -- s )   "x" ;
+end
+
+class Bin extends Expr           # zweistellige Knoten: Schablonenmethode toString
+    field l
+    field r
+    : init ( a b -- self ) a to l  b to r  this ;
+    : toString ( -- s )
+        "(" l send toString concat " " concat  this send op concat
+        " " concat  r send toString concat  ")" concat
+    ;
+end
+
+class Add extends Bin
+    : op ( -- s )         "+" ;
+    : eval ( x -- v )     x l send eval  x r send eval  + ;
+    : derive ( -- e )     l send derive  r send derive  new Add send init ;
+    :: smart ( a b -- e ) # Konstanten falten, neutrale Elemente streichen
+        a send isConst  b send isConst  *
+        if a send value  b send value  +  new Num send init
+        else a 0 is if b
+        else b 0 is if a
+        else a b new Add send init then then then
+    ;
+    : simplify ( -- e )   l send simplify  r send simplify  Add.smart ;
+end
+
+class Sub extends Bin
+    : op ( -- s )         "-" ;
+    : eval ( x -- v )     x l send eval  x r send eval  - ;
+    : derive ( -- e )     l send derive  r send derive  new Sub send init ;
+    :: smart ( a b -- e )
+        a send isConst  b send isConst  *
+        if a send value  b send value  -  new Num send init
+        else b 0 is if a
+        else a b new Sub send init then then
+    ;
+    : simplify ( -- e )   l send simplify  r send simplify  Sub.smart ;
+end
+
+class Mul extends Bin
+    : op ( -- s )         "*" ;
+    : eval ( x -- v )     x l send eval  x r send eval  * ;
+    : derive ( -- e )     # Produktregel: l' * r + l * r'
+        l send derive r new Mul send init
+        l  r send derive  new Mul send init
+        new Add send init
+    ;
+    :: smart ( a b -- e )
+        a send isConst  b send isConst  *
+        if a send value  b send value  *  new Num send init
+        else a 0 is  b 0 is  +  if 0 new Num send init
+        else a 1 is if b
+        else b 1 is if a
+        else a b new Mul send init then then then then
+    ;
+    : simplify ( -- e )   l send simplify  r send simplify  Mul.smart ;
+end
+
+# Konstruktorwoerter: damit liest sich der Aufbau wie ein Taschenrechner
+: num ( n -- e )       n new Num send init ;
+: x ( -- e )           new Var ;
+: plus ( a b -- e )    a b new Add send init ;
+: minus ( a b -- e )   a b new Sub send init ;
+: times ( a b -- e )   a b new Mul send init ;
+
+: table ( f a b -- )   # Wertetabelle von a bis b - 1
+    a b < if
+        "f(" a str concat ") = " concat  a f send eval str concat .s
+        f  a 1 +  b  table
+    then
+;
+
+: demo ( -- )
+    local f
+    local d
+    local g
+    # f(x) = 3x^2 + 2x + 1
+    3 num  x x times  times   2 num x times   plus   1 num   plus  to f
+    f .o
+    "Wertetabelle:" .s
+    f 0 5 table
+    "Ableitung, roh und vereinfacht:" .s
+    f send derive .o
+    f send derive send simplify to d
+    d .o
+    "f'(2) =" .s
+    2 d send eval .
+    "Zweite Ableitung:" .s
+    d send derive send simplify .o
+
+    "Konstanten falten:" .s
+    2 num 3 num plus  x times  0 num plus  1 num times  to g
+    g .o
+    g send simplify .o
+;
+demo

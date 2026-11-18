@@ -1,0 +1,4 @@
+: fact ( n -- result )
+    n 1 < if 1 else n n 1 - fact * then
+;
+5 fact .

@@ -1,0 +1,4 @@
+: once ( x -- y ) local temp x to temp temp 1 + ;
+1 once .
+2 once .
+3 once .

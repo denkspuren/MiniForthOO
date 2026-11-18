@@ -1,0 +1,17 @@
+class Base
+    field value
+    : init ( n -- self ) n to value this ;
+    : inc ( -- ) value 1 + to value ;
+    : twice ( -- ) local me this to me me send inc me send inc ;
+    : toString ( -- s ) "Value=" value str concat ;
+end
+class Derived extends Base
+    : inc ( -- ) super inc super inc ;
+end
+: demo ( -- )
+    local c
+    2 new Derived send init to c
+    c send twice
+    c .o
+;
+demo

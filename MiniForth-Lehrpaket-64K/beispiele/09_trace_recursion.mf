@@ -1,0 +1,6 @@
+: down ( n -- result )
+    n 0 = if 0 else n 1 - down 1 + then
+;
+trace
+2 down .
+trace

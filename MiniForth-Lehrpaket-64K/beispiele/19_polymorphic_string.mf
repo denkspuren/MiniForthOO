@@ -1,0 +1,9 @@
+class Animal
+    : toString ( -- s ) "Animal" ;
+end
+class Cat extends Animal
+    : toString ( -- s ) "Cat: " super toString concat ;
+end
+new Animal .o
+new Cat .o
+see Cat.toString

@@ -1,0 +1,8 @@
+: fact ( n -- result )
+    local smaller
+    n 1 < if 1 else
+        n 1 - fact to smaller
+        n smaller *
+    then
+;
+6 fact .

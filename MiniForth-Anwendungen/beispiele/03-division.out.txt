@@ -1,0 +1,11 @@
+17 / 5 = 3 Rest 2
+-17 / 5 = -3 Rest -2
+17 / -5 = -3 Rest 2
+-17 / -5 = 3 Rest -2
+0 / 7 = 0 Rest 0
+2147483647 / 7 = 306783378 Rest 1
+Probe: q * b + r ergibt wieder a
+-2147483647
+Teilen durch 0:
+Division durch 0
+0

@@ -1,0 +1,6 @@
+: hello ( -- )
+    local msg
+    "Guten Tag" to msg
+    msg .s
+;
+hello

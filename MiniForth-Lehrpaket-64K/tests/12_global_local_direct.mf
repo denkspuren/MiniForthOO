@@ -1,0 +1,7 @@
+: square ( n -- result ) n n * ;
+: run ( -- )
+  local a
+  8 square to a
+  a .
+;
+run

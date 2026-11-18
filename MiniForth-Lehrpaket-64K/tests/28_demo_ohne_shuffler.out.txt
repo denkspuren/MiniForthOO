@@ -1,0 +1,48 @@
+2
+4
+2
+2
+Counter(2)
+Counter(4)
+12
+10
+120
+Counter.twice @8260:
+  8263: LOAD 0
+  8265: INVOKEVIRTUAL 0
+  8267: LOAD 0
+  8269: INVOKEVIRTUAL 0
+  8271: RETURN 0
+CALL ip=8567
+  Math.fact locals: 3 stack:
+  main locals: stack:
+CALL ip=8567
+  Math.fact locals: 2 stack:
+  Math.fact locals: 3 stack: 3
+  main locals: stack:
+CALL ip=8567
+  Math.fact locals: 1 stack:
+  Math.fact locals: 2 stack: 2
+  Math.fact locals: 3 stack: 3
+  main locals: stack:
+CALL ip=8567
+  Math.fact locals: 0 stack:
+  Math.fact locals: 1 stack: 1
+  Math.fact locals: 2 stack: 2
+  Math.fact locals: 3 stack: 3
+  main locals: stack:
+RET ip=8589
+  Math.fact locals: 1 stack: 1 1
+  Math.fact locals: 2 stack: 2
+  Math.fact locals: 3 stack: 3
+  main locals: stack:
+RET ip=8589
+  Math.fact locals: 2 stack: 2 1
+  Math.fact locals: 3 stack: 3
+  main locals: stack:
+RET ip=8589
+  Math.fact locals: 3 stack: 3 2
+  main locals: stack:
+RET ip=3
+  main locals: stack: 6
+6

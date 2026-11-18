@@ -1,0 +1,15 @@
+# Die Objektzustände werden in mehreren Methoden verändert.
+class Counter
+  field value
+  : init ( n -- self ) n to value this ;
+  : inc ( -- ) value 1 + to value ;
+  : toString ( -- s ) "Counter(" value str concat ")" concat ;
+end
+: demo ( -- )
+  local c
+  7 new Counter send init to c
+  c .o
+  c send inc
+  c .o
+;
+demo

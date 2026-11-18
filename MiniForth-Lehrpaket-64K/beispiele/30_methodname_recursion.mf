@@ -1,0 +1,6 @@
+class Math
+    :: fib ( n -- r )
+        n 2 < if n else n 1 - Math.fib n 2 - Math.fib + then
+    ;
+end
+7 Math.fib .

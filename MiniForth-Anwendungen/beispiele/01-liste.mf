@@ -1,0 +1,103 @@
+# 01 - Eine persistente Liste nach dem Cons-Modell
+# Aufruf: java MiniForth beispiele/01-liste.mf
+# Nil ist ein Null-Objekt: Die Fallunterscheidung "leer oder nicht"
+# erledigt die dynamische Bindung, nicht ein if.
+
+# Reihenfolge: Cons steht vor Nil, weil Nil.insert "new Cons" sagt und
+# Klassennamen beim Uebersetzen aufgeloest werden. Cons selbst braucht
+# Nil nie beim Namen: Es schickt nur Nachrichten an seinen tail.
+
+class Cons
+    field head
+    field tail
+    : init ( h t -- self ) h to head  t to tail  this ;
+    : size ( -- n )        tail send size  1 + ;
+    : sum ( -- n )         tail send sum  head + ;
+    : map ( f -- l )       head f send apply  f tail send map  new Cons send init ;
+    : filter ( f -- l )
+        head f send apply
+        if head  f tail send filter  new Cons send init
+        else f tail send filter then
+    ;
+    : insert ( x -- l )    # sortiert einfuegen
+        x head <
+        if x this new Cons send init
+        else head  x tail send insert  new Cons send init then
+    ;
+    : sort ( -- l )        head  tail send sort  send insert ;
+    : reverseOnto ( acc -- l ) head acc new Cons send init  tail send reverseOnto ;
+    : rest ( -- s )        ", " head str concat  tail send rest concat ;
+    : toString ( -- s )    "[" head str concat  tail send rest concat ;
+end
+
+class Nil
+    : size ( -- n )        0 ;
+    : sum ( -- n )         0 ;
+    : map ( f -- l )       new Nil ;
+    : filter ( f -- l )    new Nil ;
+    : insert ( x -- l )    x new Nil new Cons send init ;
+    : sort ( -- l )        new Nil ;
+    : reverseOnto ( acc -- l ) acc ;
+    : rest ( -- s )        "]" ;
+    : toString ( -- s )    "[]" ;
+end
+
+# Funktionsobjekte: ein "Lambda" ist ein Objekt mit einer Methode apply.
+class Square
+    : apply ( x -- y )     x x * ;
+    : toString ( -- s )    "x -> x * x" ;
+end
+class IsEven                                     # gerade, ohne mod: x = 2 * (x halbiert)
+    : apply ( x -- f )     x 0 < if 0 x - else x then  this send even ;
+    : even ( x -- f )      x 2 < if x 0 = else x 2 - this send even then ;
+    : toString ( -- s )    "x -> x ist gerade" ;
+end
+class AddN                                       # eine Closure: n ist eingefangen
+    field n
+    : with ( n0 -- self )  n0 to n  this ;
+    : apply ( x -- y )     x n + ;
+    : toString ( -- s )    "x -> x + " n str concat ;
+end
+class LessThan
+    field limit
+    : with ( l -- self )   l to limit  this ;
+    : apply ( x -- f )     x limit < ;
+    : toString ( -- s )    "x -> x < " limit str concat ;
+end
+
+: cons ( h t -- l )    h t new Cons send init ;
+: range ( a b -- l )   a b < if a  a 1 + b range  cons else new Nil then ;
+: reverse ( l -- r )   new Nil l send reverseOnto ;
+
+: demo ( -- )
+    local numbers
+    local f
+    local mixed
+    1 11 range to numbers                        # [1, ..., 10]
+    numbers .o
+    numbers send size .
+    numbers send sum .
+    new Square to f
+    f .o
+    f numbers send map .o
+    new IsEven to f
+    f .o
+    f numbers send filter .o
+    5 new LessThan send with to f
+    f .o
+    f numbers send filter .o
+    100 new AddN send with to f
+    f .o
+    f numbers send map .o
+    numbers reverse .o
+    numbers .o                                   # unveraendert: die Liste ist persistent
+
+    "Summe der Quadrate aller geraden Zahlen von 1 bis 10:" .s
+    new Square  new IsEven numbers send filter  send map  send sum .
+
+    "Sortieren durch Einfuegen:" .s
+    3 1 4 1 5 9 2 6 new Nil cons cons cons cons cons cons cons cons to mixed
+    mixed .o
+    mixed send sort .o
+;
+demo

@@ -1,0 +1,8 @@
+: g ( n -- r )
+    local temp
+    n 2 * to temp
+    temp
+;
+trace
+9 g .
+trace

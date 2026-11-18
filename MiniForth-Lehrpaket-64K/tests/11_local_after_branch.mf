@@ -1,0 +1,7 @@
+: choose ( flag -- n )
+    local result
+    flag if 12 to result else 34 to result then
+    result
+;
+1 choose .
+0 choose .

@@ -1,0 +1,271 @@
+# Gegenstueck zu alle.jsh: je Brett acht Zahlen "a b c d Reihe Anzahl Bewertung Schluessel",
+# jede auf einer eigenen Zeile. Als Strings verbunden waeren es 2870 verschiedene
+# Zeilen, und der String-Pool (1023 Eintraege) liefe ueber.
+# Die Strategie steht in E.e; run_tests.py haengt "new Negamax to E.e demo"
+# bzw. "new Xor to E.e demo" an.
+# >>> bibliothek/arith.mf
+# Bibliothek arith.mf - Division und Rest, gebaut aus +, -, * und <
+# Die Maschine kennt kein / und kein mod. Wir definieren beide selbst,
+# mit denselben Regeln wie Java: Der Quotient wird zur Null hin abgeschnitten,
+# der Rest hat das Vorzeichen des Dividenden.
+
+: abs ( a -- b )   a 0 < if 0 a - else a then ;
+: max ( a b -- m ) a b < if b else a then ;
+
+# Schriftliche Division im Zweiersystem, fuer a >= 0 und b > 0:
+# Erst a durch 2b teilen (rekursiv), dann pruefen, ob noch einmal b hineinpasst.
+: udiv ( a b -- q )
+    local q
+    local r
+    a b < if 0 else
+    a b - b < if 1 else                  # b <= a < 2b
+        a  b b +  udiv to q              # q = a / 2b
+        a  q b b + *  -  to r            # r = a - q * 2b, also 0 <= r < 2b
+        q q +  r b < if 0 else 1 then  +
+    then then
+;
+: / ( a b -- q )
+    b 0 = if "Division durch 0" .s 0 else
+    a 0 <  b 0 <  =  if a abs b abs udiv else 0  a abs b abs udiv  - then then
+;
+: mod ( a b -- r )  a  a b / b *  - ;
+# <<< bibliothek/arith.mf
+# >>> bibliothek/map.mf
+# Bibliothek map.mf - binaerer Suchbaum als Map von int nach int
+# Benoetigt arith.mf (fuer max). get liefert 0 fuer fehlende Schluessel,
+# wie ein frisch angelegtes int-Array.
+
+class Node
+    field key
+    field val
+    field left
+    field right
+    : init ( k v l r -- self ) k to key  v to val  l to left  r to right  this ;
+    : put ( k v -- t )                  # liefert den (Teil-)Baum zurueck
+        k key < if k v left send put to left
+        else key k < if k v right send put to right
+        else v to val then then
+        this
+    ;
+    : get ( k -- v )
+        k key < if k left send get
+        else key k < if k right send get
+        else val then then
+    ;
+    : size ( -- n )    left send size  right send size  +  1 + ;
+    : depth ( -- n )   left send depth  right send depth  max  1 + ;
+end
+
+class Leaf
+    : put ( k v -- t ) k v new Leaf new Leaf new Node send init ;
+    : get ( k -- v )   0 ;
+    : size ( -- n )    0 ;
+    : depth ( -- n )   0 ;
+end
+# <<< bibliothek/map.mf
+# >>> bibliothek/nim.mf
+# Bibliothek nim.mf - Spielbrett und Spielablauf nach nim.java
+# Benoetigt arith.mf.
+# Normales Nim: Ein Zug nimmt mindestens einen Stick aus genau einer Reihe.
+# Wer den letzten Stick nimmt, gewinnt. Reihen werden ab 0 gezaehlt.
+# Hoechstens 16 Sticks, hoechstens 7 je Reihe, hoechstens 4 nichtleere Reihen.
+#
+# MiniForth hat kein int[]. Das Brett ist deshalb eine verkettete Liste von
+# Reihen mit Indexzugriff: at liest, change veraendert eine Reihe.
+# Ein Zug wird als eine Zahl kodiert: 8 * Reihe + Anzahl.
+
+: bars ( k -- s )   0 k < if " I" k 1 - bars concat else "" then ;
+
+class Row
+    field n
+    field next
+    : init ( n0 rest -- self ) n0 to n  rest to next  this ;
+    : at ( i -- k )          i 0 = if n else i 1 -  next send at then ;
+    : change ( i d -- )      i 0 = if n d + to n else i 1 - d  next send change then ;
+    : length ( -- l )        next send length  1 + ;
+    : total ( -- s )         next send total  n + ;
+    : count ( v -- c )       v next send count  n v =  + ;     # Reihen mit genau v Sticks
+    : show ( i -- )          i str ":" concat  n bars concat .s   i 1 +  next send show ;
+    : toString ( -- s )      n str  next send rest concat ;
+    : rest ( -- s )          " " n str concat  next send rest concat ;
+end
+
+class End
+    : at ( i -- k )          0 ;
+    : change ( i d -- )      ;
+    : length ( -- l )        0 ;
+    : total ( -- s )         0 ;
+    : count ( v -- c )       0 ;
+    : show ( i -- )          ;
+    : toString ( -- s )      "" ;
+    : rest ( -- s )          "" ;
+end
+
+class Nim                    # nur statische Variablen: das laufende Spiel
+    static board
+    static engine            # Strategie: Xor oder Negamax
+    static seed              # Zustand des Zufallsgenerators
+end
+1 to Nim.seed
+
+# ---------- Brett: entspricht init, isValid, show, move, undo, gameOver ----------
+: leer ( -- b )             new End ;
+: row ( n rest -- b )       n rest new Row send init ;    # 2 3 4 5 leer row row row row
+: sticks ( b i -- k )       i b send at ;                 # board[i]
+: change ( b i d -- )       i d b send change ;
+: numberOfSticks ( b -- s ) b send total ;
+: gameOver ( b -- f )       b send total 0 = ;
+: inRange ( b v -- c )      # Anzahl der Reihen mit v ... 7 Sticks
+    v 8 < if  v b send count  b v 1 + inRange  + else 0 then
+;
+: isValid ( b -- f )
+    0 b send length <                         # mindestens eine Reihe
+    b 0 inRange  b send length =  *           # jede Reihe hat 0 bis 7 Sticks
+    b send total 17 <  *                      # hoechstens 16 Sticks
+    b send length  0 b send count  -  5 <  *  # hoechstens 4 nichtleere Reihen
+;
+: init ( b -- b )           b isValid 0 = if "Ungueltiges Spielfeld" .s then b ;
+: show ( b -- )             0 b send show ;
+: move ( b r k -- b )
+    -1 r <  r b send length <  *   0 k <  *   k  b r sticks 1 +  <  *
+    if b r 0 k - change else "Ungueltiger Zug" .s then  b
+;
+: undo ( b r k -- b )       b r k change  b ;
+: board ( -- b )            Nim.board ;
+: neu ( b -- )              b init to Nim.board  board show ;
+
+# ---------- Zuege ----------
+: firstMove ( b i -- m )    # legalMoves[0]: erste nichtleere Reihe, alle Sticks
+    0 b i sticks < if i 8 *  b i sticks + else b i 1 + firstMove then
+;
+: nthMove ( b i j -- m )    # j-ter Zug in der Reihenfolge von moves()
+    j  b i sticks  < if i 8 *  b i sticks j -  + else b  i 1 +  j b i sticks -  nthMove then
+;
+: random ( n -- r )         # linearer Kongruenzgenerator des ZX81
+    Nim.seed 75 * 74 +  65537 mod  to Nim.seed   Nim.seed n mod
+;
+
+# ---------- Spielablauf: entspricht play und help ----------
+: plural ( k -- s )         1 k < if " Sticks" else " Stick" then ;
+: describe ( m -- s )       # "2 Sticks aus Reihe 1."
+    m 8 mod str  m 8 mod plural concat  " aus Reihe " concat  m 8 / str concat  "." concat
+;
+: doPlay ( b m -- )
+    b  m 8 /  m 8 mod  move to b                  # move liefert das Brett zurueck, wie in Java
+    "Computer entfernt " m describe concat .s
+    b show
+    b gameOver if "Computer gewinnt!" .s then
+;
+: play ( b -- )
+    b gameOver if "Das Spiel ist bereits beendet." .s
+    else b  b Nim.engine send bestMove  doPlay then
+;
+: help ( b -- )
+    b gameOver if "Das Spiel ist bereits beendet." .s
+    else b Nim.engine send wins if
+        "Dies ist eine Gewinnposition." .s
+        "Vorschlag: Entferne "  b Nim.engine send bestMove describe  concat .s
+    else
+        "Dies ist eine Verlustposition. Bei perfektem Gegenspiel gibt es keinen Gewinnzug." .s
+        "Vorschlag: Entferne "  b 0  b numberOfSticks random  nthMove describe  concat .s
+    then then
+;
+# <<< bibliothek/nim.mf
+# >>> bibliothek/nim-xor.mf
+# Bibliothek nim-xor.mf - die XOR-Strategie (Satz von Bouton, 1901)
+# Benoetigt arith.mf und nim.mf. Eine Stellung ist verloren fuer den,
+# der am Zug ist, wenn das XOR aller Reihen 0 ist.
+
+: xor ( a b -- r )           # aus / und mod gebaut, Bit fuer Bit
+    a b + 0 = if 0 else
+        a 2 mod  b 2 mod  +  2 mod      # letztes Bit
+        a 2 /  b 2 /  xor  2 *  +       # restliche Bits
+    then
+;
+: nimsum ( b i -- s )        i b send length < if  b i sticks  b i 1 + nimsum  xor else 0 then ;
+: xorScan ( b s i -- m )     # erste Reihe, die sich auf (Reihe xor s) verkleinern laesst
+    local n
+    i b send length < if
+        b i sticks to n
+        n s xor  n <
+        if i 8 *  n  n s xor -  +
+        else b s  i 1 +  xorScan then
+    else 0 then
+;
+
+class Xor
+    : wins ( b -- f )        b 0 nimsum  0 = 0 = ;
+    : bestMove ( b -- m )
+        local m
+        b  b 0 nimsum  0 xorScan to m
+        m 0 = if b 0 firstMove else m then
+    ;
+    : toString ( -- s )      "XOR-Strategie" ;
+end
+# <<< bibliothek/nim-xor.mf
+# >>> bibliothek/nim-negamax.mf
+# Bibliothek nim-negamax.mf - Negamax mit Cache wie in nim.java
+# Benoetigt arith.mf, map.mf und nim.mf. Wo Java ein int[4096] als Cache
+# nimmt, nimmt diese Fassung den binaeren Suchbaum aus map.mf.
+# Ein Unterschied mit Absicht: Java legt fuer jeden bestMove-Aufruf einen
+# frischen Cache an und ueberlaesst den alten dem Garbage Collector. MiniForth
+# hat keinen; jeder frische Cache bliebe als Muell im Speicher liegen. Weil sich
+# die Bewertung einer Stellung nie aendert, behalten wir einfach einen Cache.
+
+# key: nichtleere Reihen aufsteigend sortiert, je 3 Bit. Statt die Reihen zu
+# kopieren und zu sortieren, zaehlen wir fuer v = 1 ... 7, wie oft v vorkommt.
+: appendN ( acc v c -- k )  c 0 = if acc else  acc 8 * v +  v  c 1 -  appendN then ;
+: keyFrom ( b v acc -- k )
+    v 8 < if  b  v 1 +  acc v  v b send count  appendN  keyFrom else acc then
+;
+: key ( b -- k )            b 1 0 keyFrom ;
+
+class Negamax
+    static cache             # statisch, damit man von aussen hineinschauen kann
+    : value ( b -- v )       # negamax(cache, board): 1 gewonnen, -1 verloren
+        local v
+        b gameOver if -1 else
+            b key cache send get to v
+            v 0 = if
+                b 0  b 0 sticks  this send scan  0 = if -1 else 1 then  to v
+                b key v cache send put to cache
+            then
+            v
+        then
+    ;
+    : scan ( b i k -- m )    # erster Zug ab Reihe i mit k Sticks, nach dem der Gegner verliert
+        local v
+        i b send length < if
+            k 0 = if  b  i 1 +  b i 1 + sticks  this send scan
+            else
+                b i 0 k - change                  # move
+                b this send value to v            # negamax
+                b i k change                      # undo
+                v -1 = if i 8 * k + else b i  k 1 -  this send scan then
+            then
+        else 0 then
+    ;
+    : bestMove ( b -- m )    # wie bestMove in nim.java
+        local m
+        b 0  b 0 sticks  this send scan to m
+        m 0 = if b 0 firstMove else m then
+    ;
+    : wins ( b -- f )        b this send value  1 = ;
+    : toString ( -- s )      "Negamax mit Suchbaum-Cache" ;
+end
+new Leaf to Negamax.cache
+# <<< bibliothek/nim-negamax.mf
+class E static e end
+: set ( b i v -- )      b i  v b i sticks -  change ;
+: out ( b -- )
+    local m
+    b E.e send bestMove to m
+    b 0 sticks .  b 1 sticks .  b 2 sticks .  b 3 sticks .
+    m 8 / .  m 8 mod .  b E.e send wins if 1 else -1 then .  b key .
+;
+: check ( b -- )   b isValid  b gameOver 0 =  *  if b out then ;
+: forD ( b v -- )  v 8 < if  b 3 v set  b check   b v 1 + forD  then ;
+: forC ( b v -- )  v 8 < if  b 2 v set  b 0 forD  b v 1 + forC  then ;
+: forB ( b v -- )  v 8 < if  b 1 v set  b 0 forC  b v 1 + forB  then ;
+: forA ( b v -- )  v 8 < if  b 0 v set  b 0 forB  b v 1 + forA  then ;
+: demo ( -- )   0 0 0 0 leer row row row row 0 forA ;

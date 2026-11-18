@@ -1,0 +1,25 @@
+# Bibliothek arith.mf - Division und Rest, gebaut aus +, -, * und <
+# Die Maschine kennt kein / und kein mod. Wir definieren beide selbst,
+# mit denselben Regeln wie Java: Der Quotient wird zur Null hin abgeschnitten,
+# der Rest hat das Vorzeichen des Dividenden.
+
+: abs ( a -- b )   a 0 < if 0 a - else a then ;
+: max ( a b -- m ) a b < if b else a then ;
+
+# Schriftliche Division im Zweiersystem, fuer a >= 0 und b > 0:
+# Erst a durch 2b teilen (rekursiv), dann pruefen, ob noch einmal b hineinpasst.
+: udiv ( a b -- q )
+    local q
+    local r
+    a b < if 0 else
+    a b - b < if 1 else                  # b <= a < 2b
+        a  b b +  udiv to q              # q = a / 2b
+        a  q b b + *  -  to r            # r = a - q * 2b, also 0 <= r < 2b
+        q q +  r b < if 0 else 1 then  +
+    then then
+;
+: / ( a b -- q )
+    b 0 = if "Division durch 0" .s 0 else
+    a 0 <  b 0 <  =  if a abs b abs udiv else 0  a abs b abs udiv  - then then
+;
+: mod ( a b -- r )  a  a b / b *  - ;

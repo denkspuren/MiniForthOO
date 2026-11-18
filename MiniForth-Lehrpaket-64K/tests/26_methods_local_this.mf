@@ -1,0 +1,17 @@
+class A
+    field n
+    : init ( x -- self ) x to n this ;
+    : sum ( x -- result )
+        local self
+        this to self
+        x self send read +
+    ;
+    : read ( -- n ) n ;
+end
+: demo ( -- n )
+    local a
+    7 new A send init to a
+    10 a send sum
+;
+demo .
+

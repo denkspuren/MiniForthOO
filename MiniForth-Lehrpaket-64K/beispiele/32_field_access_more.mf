@@ -1,0 +1,14 @@
+class Coord
+    field x
+    field y
+    : init ( xx yy -- self ) xx to x yy to y this ;
+    : move ( dx dy -- ) x dx + to x y dy + to y ;
+    : toString ( -- s ) "(" x str concat "," concat y str concat ")" concat ;
+end
+: demo ( -- )
+    local p
+    2 5 new Coord send init to p
+    3 4 p send move
+    p .o
+;
+demo

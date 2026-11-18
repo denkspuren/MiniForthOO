@@ -1,0 +1,5 @@
+: square ( x -- y )
+    x x *
+;
+see square
+3 square .

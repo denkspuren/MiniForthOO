@@ -1,0 +1,31 @@
+# Bibliothek map.mf - binaerer Suchbaum als Map von int nach int
+# Benoetigt arith.mf (fuer max). get liefert 0 fuer fehlende Schluessel,
+# wie ein frisch angelegtes int-Array.
+
+class Node
+    field key
+    field val
+    field left
+    field right
+    : init ( k v l r -- self ) k to key  v to val  l to left  r to right  this ;
+    : put ( k v -- t )                  # liefert den (Teil-)Baum zurueck
+        k key < if k v left send put to left
+        else key k < if k v right send put to right
+        else v to val then then
+        this
+    ;
+    : get ( k -- v )
+        k key < if k left send get
+        else key k < if k right send get
+        else val then then
+    ;
+    : size ( -- n )    left send size  right send size  +  1 + ;
+    : depth ( -- n )   left send depth  right send depth  max  1 + ;
+end
+
+class Leaf
+    : put ( k v -- t ) k v new Leaf new Leaf new Node send init ;
+    : get ( k -- v )   0 ;
+    : size ( -- n )    0 ;
+    : depth ( -- n )   0 ;
+end

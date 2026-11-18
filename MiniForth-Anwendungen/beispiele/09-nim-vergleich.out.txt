@@ -1,0 +1,11 @@
+Negamax mit Suchbaum-Cache
+XOR-Strategie
+Gueltige Bretter mit vier Reihen:
+2871
+Davon gleiches Urteil (Gewinn oder Verlust):
+2871
+Davon nicht leer und mit gleichem Zug:
+2870
+Verschiedene Stellungen im Cache und Tiefe des Suchbaums:
+222
+222

@@ -1,0 +1,10 @@
+class Counter
+    field value
+    : test ( -- n )
+        local value
+        7 to this.value
+        4 to value
+        this.value value +
+    ;
+end
+new Counter send test .

@@ -1,0 +1,12 @@
+class Counter
+    field value
+    : inc ( -- ) value 1 + to value ;
+    : toString ( -- s ) "Counter(value=" value str concat ")" concat ;
+end
+: demo ( -- )
+    local c
+    new Counter to c
+    c send inc
+    c .o
+;
+demo

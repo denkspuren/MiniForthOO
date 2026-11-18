@@ -1,0 +1,8 @@
+: line ( x1 y1 x2 y2 -- svg )
+    "<line x1='" x1 str concat "' y1='" concat
+    y1 str concat "' x2='" concat x2 str concat
+    "' y2='" concat y2 str concat "' stroke='black'/>" concat
+;
+"<svg xmlns='http://www.w3.org/2000/svg' width='50' height='50'>" .s
+1 2 30 40 line .s
+"</svg>" .s

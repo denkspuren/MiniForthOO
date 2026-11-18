@@ -1,0 +1,14 @@
+class Box
+    field value
+    : set ( n -- ) n to value ;
+    : read ( -- n ) value ;
+end
+: demo ( -- )
+    local first
+    local second
+    new Box to first
+    first to second
+    21 second send set
+    first send read .
+;
+demo

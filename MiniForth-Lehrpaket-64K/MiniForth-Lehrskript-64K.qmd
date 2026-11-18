@@ -1,0 +1,1148 @@
+---
+title: "MiniForth – Wie Objektorientierung aus Speicherzellen entsteht"
+subtitle: "Eine kommentierte Reise durch 300 Zeilen Java: vom Speicherlayout bis run()"
+author: "ChatGPT"
+lang: de
+format:
+  html:
+    # minimal: true        # Erzeugt absolut minimales HTML ohne jQuery/Bootstrap
+    # css: lehrskript.css
+    embed-resources: true
+    link-external-icon: true
+    link-external-newwindow: true
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    code-copy: true
+    theme: cosmo
+    highlight-style: github
+execute:
+  enabled: false
+---
+
+::: {.callout-important title="Welche Fassung wird hier behandelt?"}
+Dieses Skript bezieht sich **ausschließlich auf die mitgelieferte aktuelle `MiniForth.java` mit genau 300 physischen Java-Zeilen**: `MEMORY=65536`, `MAX_METHODS=16`, `MAX_FIELDS=16`, `MAX_LOCALS=16`, `OPERAND_CAPACITY=76`. Es besitzt **benannte Parameter und `local`**, aber **keine eingebauten Stack-Shuffler** (`dup`, `drop`, `swap`). Ältere Lehrskripte mit 16K/32K Speicher oder globaler VTable mit 16 Einträgen beschreiben eine **andere** Version.
+
+Die im Text gezeigten Disassemblies und Traces wurden für diese Fassung mit den im Paket enthaltenen `.mf`-Programmen erzeugt; die Soll-Ausgaben liegen direkt daneben als `.out.txt`. Die Java-Quellcodezeilenangaben beziehen sich auf die unveränderte beigefügte Datei.
+:::
+
+## Warum es sich lohnt, eine virtuelle Maschine selbst zu bauen
+
+Ein Java-Objekt kann Felder und Methoden haben. Das wissen wir. Aber **was passiert im Speicher**, wenn wir `new`, einen Methodenaufruf, eine lokale Variable oder `super` benutzen? Die Java Virtual Machine verbirgt viele Details, weil sie wesentlich mehr Aufgaben erfüllen muss. MiniForth bildet diejenigen Mechanismen, die wir für die Grundidee brauchen, mit **einem `int[]` und einigen schlichten Java-Methoden** nach.
+
+Wir werden erkennen:
+
+- Ein **Objekt** ist ein Block von Speicherzellen mit einer Klassenadresse und anschließenden Feldwerten.
+- Eine **Klasse** ist eine Beschreibung, in der neben den Feldzahlen auch Verweise auf Methodencode stehen.
+- Eine **Methode** ist Bytecode mit einem Kopf, der die Anzahl der Parameter und Ergebnisse angibt.
+- Ein **Aufruf** legt einen eigenen **Frame** an. Die Eingabeparameter und `local`-Werte leben dort, der Operandenstack ebenfalls.
+- **Polymorphie** entsteht, weil der Aufruf einer Instanzmethode über die Tabelle der *tatsächlichen* Objektklasse führt.
+- Die **Quellsprache** kann lesbare Namen benutzen, obwohl die **VM** nur Zahlen, Adressen und Opcodes kennt.
+
+Die Darstellung ist absichtlich *keine* vollständige Nachbildung der JVM: keine Interfaces, keine Threads, keine automatische Speicherbereinigung, keine Typprüfung und kein Java-Bytecodeformat. Wir wollen **begreifen**, nicht eine Produktionslaufzeit bauen.
+
+### Arbeitsweise und Materialien
+
+Das Paket enthält die **unveränderte Referenzmaschine** `MiniForth.java`, **35 unabhängige Beispielprogramme** (`beispiele/*.mf`) mit bytegenauen Soll-Ausgaben, `MemoryTour.java` als **Speicherlupe**, `MemoryLimitsTests.java` sowie einen Testläufer für die Programmregressionen.
+
+```bash
+javac --release 8 MiniForth.java MemoryTour.java MemoryLimitsTests.java
+java MiniForth beispiele/02_square_bytecode.mf
+java MemoryTour
+java MemoryLimitsTests
+python3 verify_examples.py
+python3 run_tests.py
+```
+
+`python3` dient nur zum automatischen Testen. Zur Arbeit mit MiniForth reichen `javac` und `java`.
+
+::: {.callout-tip title="Drei Ansichten nebeneinander"}
+Bei jedem Beispiel stellen wir drei Fragen:
+
+1. **Quellsprache:** Was will das Programm ausdrücken?
+2. **Bytecode:** Welche Befehle erzeugt der Compiler? (`see`)
+3. **Speicher:** Welche Zellen ändern sich wirklich? (`trace` oder `MemoryTour`)
+:::
+
+# Teil I – Die Speicherorganisation verstehen, bevor wir programmieren
+
+## Die ersten 30 Java-Zeilen sind eine Landkarte
+
+Im Java-Code beginnt die Maschine mit Konstanten, Symbolarten, Speicherlayouts und Zeigern. Es lohnt sich, diese wenigen Zeilen **vor den restlichen 270** wirklich zu verstehen. Hier der betreffende Ausschnitt **wortgetreu** aus `MiniForth.java`, Zeilen 5–30:
+
+```java
+    static final int HALT=0, PUSH=1, ADD=2, SUB=3, MUL=4, LESS=5, EQUAL=6,
+        PRINT=7, RETURN=8, LOAD=9, STORE=10, GETFIELD=11, PUTFIELD=12,
+        GETSTATIC=13, PUTSTATIC=14, NEW=15, VIRTUAL=16, SPECIAL=17,
+        CALL=18, IFEQ=19, GOTO=20, STR=21, STRCAT=22, ITOS=23, PRINTS=24;
+    static final String[] OPCODES = {"HALT", "PUSH", "ADD", "SUB", "MUL",
+        "LESS", "EQUAL", "PRINT", "RETURN", "LOAD", "STORE", "GETFIELD",
+        "PUTFIELD", "GETSTATIC", "PUTSTATIC", "NEW", "INVOKEVIRTUAL",
+        "INVOKESPECIAL", "INVOKESTATIC", "IFEQ", "GOTO", "STR", "STRCAT",
+        "ITOS", "PRINTS"};
+    static final String[] PRIM = {"+", "-", "*", "<", "=", ".", ".s", "str", "concat"};
+    static final int[] PRIMOP = {ADD, SUB, MUL, LESS, EQUAL, PRINT, PRINTS, ITOS, STRCAT};
+    static final int LINK=0, KIND=1, OWNER=2, VALUE=3, LEN=4, CHARS=5;
+    static final int CLASS=1, FIELD=2, STATIC=3, METHOD=4, STATIC_METHOD=5,
+        LOCAL=6, SELECTOR=7, WORD=8;
+    static final int MEMORY=65536, MAX_METHODS=16, MAX_FIELDS=16, MAX_LOCALS=16, OPERAND_CAPACITY=76;
+    static final int SUPER=0, NFIELDS=1, NMETHODS=2, VTABLE=3, ENTRY=2;
+    static final int NARGS=0, NRESULTS=1, LENGTH=2, CODE=3;
+    static final int OLD_FP=0, RET_IP=1, FMETHOD=2, DEPTH=3, LOCAL0=4, STACK=LOCAL0+MAX_LOCALS;
+    static final int DICT=128, HEAP=8192, FRAME=STACK+OPERAND_CAPACITY, SCRATCH=1;
+    int[] mem = new int[MEMORY];
+    String[] strings = new String[1024];
+    int stringCount=1, dp=DICT, here=HEAP, ctrl=16, fp=mem.length-FRAME, ip;
+    int dictionary, selectors, currentClass, currentMethod, localSlots;
+    boolean trace;
+    Scanner input;
+    int define(String name, int kind, int owner, int value) {
+```
+
+Vieles sieht zunächst nach einer Fülle von Zahlen aus. Dahinter stecken jedoch lediglich verschiedene **Layouts**: Jeder Datensatz besitzt eine Startadresse, jede Eigenschaft einen **Offset** relativ zu dieser Startadresse. Das ist dasselbe Prinzip wie bei einem Java-Arrayzugriff `a[i]`: Wir müssen wissen, *welcher* Index zu *welcher* Bedeutung gehört.
+
+### Die Maschinenbefehle und ihre Namen (Zeilen 5–15)
+
+Die Konstanten `HALT=0` bis `PRINTS=24` geben jedem Opcode eine ganze Zahl. In `mem` steht etwa die Zahl `2`, aber `OPCODES[2]` liefert beim Disassemblieren den lesbaren Namen `ADD`.
+
+- `OPCODES` sind die **internen** Befehlsnamen für `see`.
+- `PRIM` und `PRIMOP` sind gleich lange Listen: `PRIM[i]` benennt ein Quellwort, `PRIMOP[i]` den zugehörigen Opcode.
+- Beispielsweise wird das Quellwort `+` zu `ADD`. `.s` wird zu `PRINTS`; `str` zu `ITOS`.
+
+Dies ist **keine** Auflistung aller Quellwörter. `class`, `local`, `send` oder `if` müssen besondere Arbeit beim **Übersetzen** leisten und werden weiter unten erklärt.
+
+### Die Symbolarten (Zeilen 16–18)
+
+`CLASS`, `FIELD`, `STATIC`, `METHOD`, `STATIC_METHOD`, `LOCAL`, `SELECTOR` und `WORD` kennzeichnen, was ein Wörterbucheintrag bedeutet. Ein und dieselbe Zeichenfolge kann in unterschiedlichen Rollen auftauchen, etwa `x` als lokaler Parameter und als Instanzfeld.
+
+### Die frei veränderbaren Grenzen (Zeile 19)
+
+| Konstante | Wert | Bedeutung |
+|---|---:|---|
+| `MEMORY` | `65536` | Anzahl aller `int`-Zellen, also 64 Ki-Zellen ≈ 256 KiB Nutzdaten |
+| `MAX_METHODS` | `16` | Virtuelle Methodeneinträge **pro Klasse**, geerbte eingeschlossen |
+| `MAX_FIELDS` | `16` | Instanzfelder je Objekt, **einschließlich geerbter Felder** |
+| `MAX_LOCALS` | `16` | Parameter und lokale Variablen je Frame, bei Instanzmethoden einschließlich `this` |
+| `OPERAND_CAPACITY` | `76` | Operandenstackzellen pro Frame |
+
+Die Werte sind **Konfiguration**, nicht universelle Eigenschaften der Objektorientierung. Werden die `MAX_*`-Werte erhöht, passen sich Klassen- und Framegröße automatisch an. Die aktuelle Quelle prüft Feld-, Methoden- und Lokalslots beim Anlegen.
+
+## Alle Bereiche des `int[]` auf einen Blick
+
+```text
+Adresse im int[65536]       Verwendung                          Wachstum
+┌───────────────────────┬───────────────────────────────────┐
+│     0 … 15            │ Scratch / Direktmodus (ab 1)      │
+├───────────────────────┼───────────────────────────────────┤
+│    16 … 127           │ Kontrollstack für if/else/then    │ ctrl ↑
+├───────────────────────┼───────────────────────────────────┤
+│   128 … 8191          │ Wörterbuch / Symboltabelle        │ dp ↑
+├───────────────────────┼───────────────────────────────────┤
+│  8192 … here−1        │ Klassen, Methoden, static, Objekte│ here ↑
+├───────────────────────┼───────────────────────────────────┤
+│  here … fp−1          │ derzeit noch freier Speicher      │
+├───────────────────────┼───────────────────────────────────┤
+│  fp … 65535           │ Aufruf-Frames                     │ fp ↓
+└───────────────────────┴───────────────────────────────────┘
+```
+
+**Die Startwerte** aus Zeile 26 und die zugehörigen Konstanten lauten:
+
+```java
+int dp=DICT;                 // 128: erstes Dictionarywort
+int here=HEAP;               // 8192: nächste freie Heapzelle
+int ctrl=16;                 // offenes if / else / then
+int fp=mem.length-FRAME;     // 65536-96 = 65440
+```
+
+Der wichtige Gedanke: **Keine Zone hat einen eigenen Java-Arraytyp.** Alles steht in `mem`. Nur die vereinbarten Adressen machen den Unterschied. Das Wörterbuch besitzt allerdings einen festen oberen Rand bei `HEAP=8192`; der Heap kann bis **direkt vor** den jeweils aktuellen Frame-Zeiger wachsen (im Grenzfall ist `here == fp` und kein freier Platz mehr übrig).
+
+::: {.callout-note title="Und die Zeichenketten?"}
+Es gibt außerdem `String[] strings = new String[1024]`. Diese Tabelle enthält Java-Strings. Auf dem **MiniForth-Stack** steht lediglich deren `int`-Index, beginnend bei 1. Die Strings sind bewusst aus dem Hauptarray ausgelagert; alle *MiniForth-Objekte, Klassen und Frames* befinden sich weiterhin in `mem`.
+:::
+
+## Speicherlayout A: ein Wörterbucheintrag
+
+Die Konstanten `LINK=0, KIND=1, OWNER=2, VALUE=3, LEN=4, CHARS=5` beschreiben einen Datensatz, der bei einer Adresse `E` beginnt:
+
+| Zelle | Bedeutung | Beispiel `Base` |
+|---|---|---|
+| `E+0` (`LINK`) | Adresse des vorherigen Eintrags, `0` beendet die Liste | `0` |
+| `E+1` (`KIND`) | Symbolart | `1` (`CLASS`) |
+| `E+2` (`OWNER`) | Eigentümer / Gültigkeitsbereich | `0` (globale Klasse) |
+| `E+3` (`VALUE`) | Zugeordneter Wert: Adresse oder Slotnummer | `8192` |
+| `E+4` (`LEN`) | Länge des Namens | `4` |
+| `E+5` … | Zeichen als Integer-Codepunkte in je einer Zelle | `B`, `a`, `s`, `e` |
+
+Die **Speicherlupe** zeigt für die erste Klasse `Base` tatsächlich `E=128` und `E+3=131` mit Wert `8192`. Ein Eintrag belegt `CHARS + name.length()` Zellen, also hier `5+4=9`. Der nächste freie Dictionaryplatz ist anschließend `137`.
+
+```text
+E=128   129    130    131    132    133    134    135    136
+  0       1      0     8192     4     'B'    'a'    's'    'e'
+ LINK   KIND   OWNER   VALUE   LEN     Zeichen des Namens
+```
+
+**Warum `LINK`?** `define` setzt den neuen Eintrag an den Anfang einer **verketteten Liste**. `find` folgt den `LINK`-Adressen zurück, bis es einen passenden Namen findet oder bei `0` angelangt ist. Das ist eine bewusst einfache Symboltabelle ohne `HashMap`.
+
+## Speicherlayout B: eine Klasse
+
+Die Konstanten aus Zeile 20 heißen `SUPER=0`, `NFIELDS=1`, `NMETHODS=2`, `VTABLE=3`, `ENTRY=2`.
+
+Eine Klasse beginnt bei Adresse `K`:
+
+| Zelle | Bedeutung |
+|---|---|
+| `K+0` | `SUPER`: Adresse der Oberklasse, oder `0` |
+| `K+1` | `NFIELDS`: gesamte Zahl der Instanzfelder einschließlich geerbter |
+| `K+2` | `NMETHODS`: Zahl der belegten virtuellen Methodeneinträge |
+| `K+3` | Selektor-ID des ersten virtuellen Methodennamens |
+| `K+4` | Bytecodeadresse der zugehörigen Implementierung |
+| `K+5`, `K+6` | zweiter Selektor und zweiter Codezeiger |
+| … | weitere Paare |
+| `K+33`, `K+34` | sechzehntes Selektor-/Codepaar |
+
+**Rechnung:** `VTABLE + ENTRY*MAX_METHODS = 3 + 2*16 = 35` Zellen pro Klasse.
+
+Das unterscheidet sich deutlich von der früheren Version: Die **Selektor-IDs** werden zwar global vergeben, aber jede Klasse verwaltet eine **eigene Liste mit höchstens 16 Selektor-/Code-Paaren**. Zwei unabhängige Klassen dürfen daher vollkommen verschiedene virtuelle Methodennamen haben. Eine abgeleitete Klasse kopiert die vorhandenen Einträge und ersetzt beim Überschreiben die Codeadresse.
+
+### Die Klassenzellen wirklich auslesen
+
+Die Speicherlupe kompiliert diese beiden Klassen (der Java-Code erzeugt den MiniForth-Text selbst):
+
+```text
+class Base
+    field x
+    : read ( -- n ) x ;
+end
+class Child extends Base
+    field y
+    : sum ( -- n ) x y + ;
+end
+new Child
+```
+
+Ihre verifizierte Ausgabe beginnt:
+
+```text
+MEMORY=65536 DICT=128 HEAP=8192 FRAME=96 STACK=20 fp=65440
+Klassen: Base=8192 Child=8236
+8192  ->  0  Base.SUPER
+8193  ->  1  Base.NFIELDS
+8194  ->  1  Base.NMETHODS
+8195  ->  0  Base.selector[0]
+8196  ->  8227  Base.code[0]
+8236  ->  8192  Child.SUPER
+8237  ->  2  Child.NFIELDS
+8238  ->  2  Child.NMETHODS
+8239  ->  0  Child.selector[0]
+8240  ->  8227  Child.code[0]
+8241  ->  1  Child.selector[1]
+8242  ->  8271  Child.code[1]
+```
+
+Das lässt sich **ohne Mutmaßungen** erklären:
+
+1. `Base` beginnt bei `8192` und belegt als Klasse zunächst `8192–8226` (35 Zellen).
+2. Die Methode `Base.read` beginnt folglich bei `8227`. Ihre Kopfzellen und drei Anweisungen belegen zusammen `3+3*2=9` Zellen, also `8227–8235`.
+3. Deshalb beginnt `Child` bei `8236`, nicht einfach bei `8192+35`.
+4. `Child` übernimmt `Base.read` und fügt einen Eintrag für `sum` hinzu; `Child.sum` beginnt bei `8271`.
+5. `Child` hat nun **zwei Felder**: das geerbte `x` an Offset 0 und das neue `y` an Offset 1.
+
+## Speicherlayout C: ein Objekt
+
+Ein Objekt selbst ist besonders klein:
+
+```text
+O+0    Klassenadresse K
+O+1    Instanzfeld mit Offset 0
+O+2    Instanzfeld mit Offset 1
+...
+```
+
+`new Child` reserviert `1+NFIELDS` Zellen. Im obigen Beispiel bestätigt die Speicherlupe:
+
+```text
+Objektadresse=8286
+8286  ->  8236  Objekt: Klassenzeiger
+8287  ->  0  Objekt: geerbtes x
+8288  ->  0  Objekt: eigenes y
+```
+
+Das Objekt belegt **drei `int`-Zellen**. Die Adresse `8286` ist die **Objektreferenz**, die auf dem Operandenstack liegt. Durch `mem[8286]` erfahren wir, dass es sich um ein Objekt der Klasse bei Adresse `8236` handelt.
+
+### Der Bezug zu Java
+
+```java
+class Base { int x; }
+class Child extends Base { int y; }
+Child c = new Child();
+```
+
+Bei Java steht in der Variablen `c` ebenfalls eine Referenz, nicht die Kopie aller Felder. *Wie* die JVM diese intern repräsentiert, ist komplizierter und implementationsabhängig. MiniForth demonstriert jedoch genau den zentralen Unterschied zwischen **Referenz und Objektdaten**.
+
+## Speicherlayout D: ein Methodenblock
+
+Die Konstanten aus Zeile 21: `NARGS=0`, `NRESULTS=1`, `LENGTH=2`, `CODE=3`.
+
+| Zelle | Wert / Bedeutung |
+|---|---|
+| `M+0` | Zahl der Parameter, bei Instanzmethoden **einschließlich `this`** |
+| `M+1` | Zahl der Rückgabewerte |
+| `M+2` | Zahl der Bytecode-Instruktionen |
+| `M+3` | erster Opcode |
+| `M+4` | dessen Operand |
+| `M+5` | zweiter Opcode |
+| `M+6` | dessen Operand |
+| … | fortlaufend Opcode und Operand |
+
+Eine Methode mit `L` Instruktionen benötigt **`3 + 2*L` Speicherzellen**. Auch Opcodes ohne benötigten Parameter besitzen eine Operandenzelle. Dadurch muss der Interpreter keine variablen Instruktionslängen behandeln.
+
+Beispiel `beispiele/27_memory_first_word.mf`:
+
+```text
+: square ( x -- y ) x x * ;
+see square
+```
+
+Das erste globale Wort beginnt in einer frischen Maschine bei `8192`:
+
+```text
+square @8192:
+  8195: LOAD 0
+  8197: LOAD 0
+  8199: MUL 0
+  8201: RETURN 0
+```
+
+Die Anweisungen beginnen folglich bei `8195 = M+3`; der nächste Opcode liegt bei `8197`, dann `8199`, dann `8201`. Die lokale Variable `x` ist **Slot 0**, kein Feld in irgendeinem Objekt.
+
+## Speicherlayout E: der Aufruf-Frame
+
+Die Konstanten aus Zeile 22 lauten:
+
+```java
+OLD_FP=0, RET_IP=1, FMETHOD=2, DEPTH=3, LOCAL0=4,
+STACK=LOCAL0+MAX_LOCALS;  // 4+16 = 20
+FRAME=STACK+OPERAND_CAPACITY; // 20+76 = 96
+```
+
+Jeder Frame beginnt bei einer Basisadresse `F`:
+
+| Zellen | Bedeutung |
+|---|---|
+| `F+0` | `OLD_FP`: Basisadresse des Aufrufers |
+| `F+1` | `RET_IP`: Rücksprungadresse des Aufrufers |
+| `F+2` | `FMETHOD`: Codeadresse / Methodenkopf des gerade laufenden Wortes |
+| `F+3` | `DEPTH`: aktuelle Zahl der Werte im Operandenstack |
+| `F+4` … `F+19` | **16 lokale Slots** (Parameter, `this` und `local`) |
+| `F+20` … `F+95` | **76 Operandenstackzellen** |
+
+Der anfängliche Frame des Direktmodus liegt bei `fp=65536−96=65440`. Sein erster Stackplatz ist die absolute Adresse `65440+20=65460`. Der nächste Methodenaufruf benötigt einen weiteren Frame bei `65344`, der nächste bei `65248`, und so weiter. Damit kann Rekursion funktionieren, ohne dass MiniForth die Java-Rekursion benutzen muss.
+
+Die Speicherlupe bestätigt sogar:
+
+```text
+Frame main=65440 depth=1
+Frame.Stack[0]=8286
+```
+
+Der Aufruf `new Child` hat also die gerade erzeugte **Objektadresse `8286`** auf den Hauptprogrammstack gelegt.
+
+## Speicherlayout F: der separate String-Pool
+
+`strings[0]` wird nicht benutzt. Das erste neue Literal bekommt Index `1` und wird im Java-Stringarray abgelegt; auf dem MiniForth-Stack liegt lediglich die Zahl `1`. Die Operation `concat` erzeugt bei Bedarf einen neuen Java-String und internisiert ihn ebenfalls. Derselbe Text erhält immer wieder denselben Index.
+
+Dieser Pool ist nicht Teil des 64K-Arrays. In einem Lehrprojekt ist das eine pragmatische Ausnahme; in einer voll ausgebauten VM würde man auch Stringobjekte im Heap modellieren können.
+
+## Zwischenbilanz: die vollständige Speicherkarte
+
+| Datensatz | Startadresse | Aufteilungsformel | Wer erzeugt ihn? |
+|---|---|---|---|
+| Dictionary | `dp`, zunächst `128` | `5 + Namenslänge` | `define` |
+| Klasse | `here`, zunächst `8192` | `3 + 2*MAX_METHODS` | `beginClass` |
+| Methode | `here` | `3 + 2*Anzahl_Instruktionen` | `beginMethod`, `emit`, `endMethod` |
+| Static-Feld | `here` | 1 Speicherzelle | `static`-Zweig in `word` |
+| Objekt | `here` | `1 + NFIELDS` | `NEW` in `run` |
+| Frame | `fp−FRAME` | `4 + MAX_LOCALS + OPERAND_CAPACITY` | `invoke` |
+| String | `strings[index]` | eigener Java-String | `intern` |
+
+### Fragen zur Speicherorganisation
+
+1. Weshalb beginnen Klassen, Methoden und Objekte **alle** im Bereich ab `8192`?
+2. Welche Information fehlt, wenn wir nur `mem[8287]` kennen, aber nicht wissen, welches Objekt dort beginnt?
+3. Warum darf `here` den aktuellen `fp` nicht **überschreiten**?
+4. Was würde passieren, wenn wir `MAX_LOCALS` auf 24 erhöhen, aber den Stackbeginn weiterhin fest bei `20` ließen?
+5. Wie viele VTable-Zellen benötigt eine Klasse bei `MAX_METHODS=24`?
+
+::: {.callout-tip title="Speicherlupe selbst ausführen"}
+`MemoryTour.java` ist ein **getrenntes Java-Programm** im selben Verzeichnis wie `MiniForth.java` und nutzt deren paketweit sichtbare Attribute. Es startet eine echte VM, kompiliert zwei Klassen und liest danach die tatsächlich geschriebenen Zellen aus. Es ersetzt **keine** Teile der Maschine und ist hervorragend zum Nachrechnen geeignet. Vergleiche die Ausgabe mit `MemoryTour.out.txt`.
+:::
+
+# Teil II – Die Sprache auf dem Maschinenmodell
+
+## Warum der Stack trotzdem wichtig bleibt
+
+Die VM arbeitet weiterhin mit einem Operandenstack, obwohl die **Quellsprache keine Stack-Shuffler mehr anbietet**. Die Kombination aus benannten Parametern, lokalen Variablen und einem internen Stack ähnelt konzeptionell Java-Bytecode.
+
+```text
+2 3 + .
+```
+
+Wort für Wort verändert der Direktmodus seinen Operandenstack: `[] → [2] → [2,3] → [5] → []`, Ausgabe `5`.
+
+Unsere elementaren Quellwörter heißen `+`, `-`, `*`, `<`, `=`, `.` sowie `.s`, `str`, `concat`. Sie sind in den Arrays `PRIM` und `PRIMOP` der Java-Quelle definiert. Zahlenliteral und Stringliteral werden vom Compiler erkannt. **`dup`, `drop`, `swap`, `rot`, `over` gibt es nicht als primitive Wörter.** Dass wir sie früher brauchten, ist gerade der Anlass für `local`.
+
+## Globale Wörter und benannte Parameter
+
+```text
+: square ( x -- y )
+    x x *
+;
+
+3 square .
+```
+
+Ausgabe: `9`. Die beiden `x` sind **nicht zwei Kopien einer Java-Variablen**, sondern zwei Anweisungen `LOAD 0`, die beide denselben lokalen Slot lesen.
+
+Eine Methode mit Parameterliste `( a b -- result )` erhält **zwei Eingabeparameter** und liefert **einen Ergebniswert**. Die Namen hinter `--` bestimmen nur die *Zahl* der Rückgaben; sie sind keine lokalen Slots. Das kann der Interpreter im Methodenkopf `NARGS` und `NRESULTS` ablesen.
+
+### Die lokale Variable: `local`
+
+```text
+: test ( x -- result )
+    local twice
+    x 2 * to twice
+    twice 1 +
+;
+see test
+7 test .
+```
+
+In der Methode ist `x` der Parameter in Slot 0 und `twice` eine neu reservierte lokale Variable in Slot 1. `to twice` wird zu `STORE 1`; `twice` beim Lesen zu `LOAD 1`. Die variable Anzahl lokaler Namen wird beim **Kompilieren** verwaltet; im Frame sind bereits 16 Plätze fest reserviert.
+
+**Java-Vergleich:** `int twice = x * 2; return twice + 1;`. Hier benötigt der Compiler keinen besonderen Objekttyp für lokale Variablen. Eine Zeigerrechnung innerhalb des Frames reicht.
+
+### Warum Methodensignaturen einen Stackeffekt brauchen
+
+```text
+: pair ( x -- first second )
+    x x 1 +
+;
+: add ( a b -- sum ) a b + ;
+9 pair add .
+```
+
+Hier kommen **zwei** Werte aus `pair` zurück: `9` und `10`. `add` übernimmt beide in seinen lokalen Slots, errechnet `19` und liefert **einen** Wert. Die Rückkehrmethode `ret` prüft, ob die Zahl der Werte zum Methodenkopf passt, und kopiert sie in den Stack des Aufrufers.
+
+## Bedingungen und Rekursion
+
+```text
+: choose ( n -- result )
+    n 0 = if 10 else 20 then
+;
+```
+
+`if` erzeugt `IFEQ` mit einer zunächst leeren Sprungadresse. `else` ergänzt die Adresse des Alternativzweigs und erzeugt ein `GOTO`. `then` ergänzt das Ende des zweiten Zweigs. **Verschachtelung** funktioniert über den Kontrollstack ab Speicherzelle `16`.
+
+Die tatsächliche Ausgabe von `see choose` findest Du in `beispiele/06_if_else_patch.out.txt`. Sie ist **kein** Laufzeit-`if` in Java, sondern echter MiniForth-Bytecode.
+
+Rekursion benötigt keine neue Sprachsyntax:
+
+```text
+: fact ( n -- result )
+    n 1 < if 1 else n n 1 - fact * then
+;
+5 fact .
+```
+
+Ausgabe: `120`. Bei jedem Aufruf von `fact` entsteht ein eigener Frame mit einer eigenen Kopie von `n`. Die Ausführung geschieht später im **einzigen Java-Interpreter `run()`**.
+
+# Teil III – Das Wörterbuch: von Zeichenfolgen zu Adressen
+
+## `define`: einen Namen im `int[]` anlegen (Zeilen 30–36)
+
+```java
+    int define(String name, int kind, int owner, int value) {
+        int start=dp, size=CHARS+name.length();
+        if (dp+size>HEAP) throw new IllegalStateException("Dictionary voll");
+        mem[dp++]=dictionary; mem[dp++]=kind; mem[dp++]=owner; mem[dp++]=value;
+        mem[dp++]=name.length();
+        for (int i=0; i<name.length(); i++) mem[dp++]=name.charAt(i); return dictionary=start;
+    }
+```
+
+Der Parameter `name` ist der geschriebene Name, `kind` seine Art, `owner` der Gültigkeitsbereich und `value` die zugeordnete Adresse oder Slotnummer. Die Methode schreibt die fünf Kopfzellen, hängt danach die Zeichen an und liefert die **Startadresse** des neu angelegten Eintrags zurück.
+
+Eine wichtige Zeile ist `mem[dp++]=dictionary`: Der neue Eintrag speichert die Adresse des **bisher jüngsten** Eintrags. Erst am Ende wird `dictionary=start` gesetzt. So entsteht eine verkettete Liste. Der Wert `0` bedeutet „kein vorheriger Eintrag“.
+
+**Bezug zu Java:** Statt `Map<String,Integer>` verwenden wir ein Array und schreiben eine einfache Datenstruktur selbst. Im Wörterbuch wird sowohl eine Klassenbezeichnung als auch ein Methoden- oder Parametername mit demselben Layout gespeichert.
+
+## `nameOf`: einen Namen aus den Integerzellen lesen (37–41)
+
+Die Methode wandelt `mem[e+CHARS]` bis `mem[e+CHARS+LEN−1]` in Java-Zeichen zurück. So wird aus vier Integerzellen wieder die Zeichenkette `Base`. Die Stringbildung hier dient **nur dem Compiler**, nicht der VM-Datenrepräsentation von Objekten.
+
+## `find`: rückwärts durch die verkettete Liste suchen (42–46)
+
+`find(name,kind,owner)` beginnt beim **jüngsten** Eintrag in `dictionary`, folgt jeweils `mem[e+LINK]` und vergleicht `KIND`, `OWNER` und den Namen. Wird nichts gefunden, liefert es `0`. Der Compiler darf diesen Wert nicht mit einer gültigen Eintragsadresse verwechseln.
+
+## `member`: Vererbung schon bei der Namenssuche (47–52)
+
+`member(name,kind,cls)` sucht zuerst in der gegebenen Klasse. Danach folgt es über `mem[c+SUPER]` der Oberklassenkette. Ein Instanzfeld kann also in einer Unterklasse benutzt werden, obwohl es im Wörterbuch ursprünglich **bei der Basisklasse** eingetragen ist.
+
+## `klass`: vom Klassennamen zur Klassenadresse (53–57)
+
+`klass("Base")` sucht den Dictionary-Eintrag der Art `CLASS` und liefert dessen `VALUE`, also beispielsweise `8192`. Ist die Klasse nicht vorhanden, entsteht eine verständliche Fehlermeldung. Die VM braucht später **diese Adresse**, nicht den Namen `Base`.
+
+## `selector`: globaler Name, numerische Selektor-ID (58–62)
+
+`selector("inc")` ordnet jedem **virtuellen Methodennamen** eine numerische ID zu, etwa `0` für den zuerst erwähnten Namen. Achtung: Diese ID ist **keine Bytecodeadresse**. Sie wird in der VTable der konkreten Klasse gegen einen Methodenimplementierungszeiger aufgelöst.
+
+Die IDs sind global eindeutig; die **Kapazität 16** gilt aber **für die Selektor-/Adresspaare jeder einzelnen Klasse**, nicht global für alle Namen. Dies ist die zentrale technische Verbesserung gegenüber den frühen MiniForth-Versionen.
+
+## `resolve`: Gültigkeitsbereich und Namenspriorität (63–79)
+
+Der Compiler muss bei einem Namen wie `x` entscheiden, welche Speicherart er meint. Dafür überprüft er nacheinander:
+
+1. `this.x` → ausdrücklich Instanzfeld der aktuellen Klasse (auch geerbt).
+2. `Klasse.member` → statisches Feld, statische Methode oder Methodenname dieser Klassenhierarchie.
+3. Unqualifizierter Name → **lokaler Slot** vor **Instanzfeld** vor **statischem Feld** vor **statischer Methode** vor **globalem Wort**.
+
+Damit kann ein Parametername ein Feld verdecken. Beispiel:
+
+```text
+class Box
+    field x
+    : set ( x -- ) x to this.x ;
+end
+```
+
+Der Ausdruck `x` vor `to` bezeichnet den Parameter, `this.x` dagegen ausdrücklich das Feld. Genau dieselbe Unterscheidung kennt Java bei `this.x = x`.
+
+### Kleine Denkaufgabe
+
+Warum brauchen die Methoden `find` und `resolve` neben dem Namen auch Informationen über **Art** und **Owner**? Kann eine Klasse ein Feld `x` haben, während eine Methode einen Parameter `x` deklariert? In welchem Fall sollte welcher Wert gelesen werden?
+
+# Teil IV – Heap, Klassen und Bytecode aufbauen
+
+## `allot`: Speicher reservieren und mit Null initialisieren (80–83)
+
+`allot(cells)` prüft zuerst, ob der Heap `here` bis an den Framezeiger `fp` wachsen würde. Dann setzt es die reservierten Zellen auf `0`, merkt die alte Startadresse, erhöht `here` und liefert die Startadresse.
+
+Mit derselben Methode entstehen Klassenbeschreibungen, Methodenköpfe, Codezellen, statische Felder und zur **Laufzeit** schließlich Objekte.
+
+**Java-Vergleich:** Statt `new int[cells]` bei jedem Datensatz wird ein vorhandenes Array vergrößert *benutzt*: Ein neuer Datensatz erhält schlicht den nächsten freien Adressbereich. Es gibt keinen Garbage Collector und keine Freigabeliste.
+
+## `intern`: Zeichenketten einmalig speichern (84–88)
+
+`intern(String s)` läuft über die bereits belegten Stringeinträge und liefert bei gleichem Text den vorhandenen Index. Andernfalls wird der String eingetragen und ein neuer Index vergeben. Bei 1024 Elementen ist Schluss; Index `0` bleibt reserviert.
+
+```text
+"Hallo" "Hallo" = .
+"Hallo" "Hal" "lo" concat = .
+```
+
+Ausgabe: jeweils `1` (wahr). Beide Male werden am Ende identische **Stringindizes** verglichen.
+
+## `next`: das nächste Quellwort lesen (89)
+
+`next()` ist nur `input.next()`. Der Scanner trennt anhand von Whitespace und Kommentaren. Das ist absichtlich kein vollwertiger Lexer. Stringliterale mit normalen Leerzeichen werden in `word` Stück für Stück zusammengesetzt; vollständige Escape-Sequenzen und Sonderfälle werden nicht unterstützt.
+
+## `emit`: einen Opcode mit Operand ausgeben (90–93)
+
+`emit(op,arg)` unterscheidet die zwei Betriebsarten:
+
+- **Innerhalb einer Definition:** Mit `allot(2)` werden Opcode und Operand dauerhaft in den Methodencode geschrieben.
+- **Außerhalb einer Definition:** Die drei Scratch-Zellen ab Adresse `1` enthalten Opcode, Operand und `HALT`; `run()` führt den einzelnen Quellbefehl **sofort** aus.
+
+Darum kann man im Direktmodus `2 3 + .` ausführen, während `: square ... ;` ein **Bytecodeprogramm** im Heap erzeugt.
+
+## `beginClass`: Klassenlayout erzeugen und erben (94–101)
+
+Hier setzt `allot(VTABLE + ENTRY*MAX_METHODS)` genau **35 Zellen** für eine Klasse ein. `define` macht den Namen bekannt. Ist `extends` vorhanden, liest der Compiler den Oberklassennamen und kopiert `SUPER`, die Zahl bereits geerbter Felder und Methodeneinträge sowie die gesamte VTable.
+
+```java
+System.arraycopy(mem, parent+VTABLE, mem,
+                 currentClass+VTABLE, ENTRY*MAX_METHODS);
+```
+
+**Java-Vergleich:** Vererbung bedeutet *nicht*, dass ein Unterklassenobjekt jedes Mal ein separates Oberklassenobjekt enthalten muss. In unserer MiniForth-Konstruktion liegen die geerbten Instanzfelder vorne im selben Objektblock, und die Unterklassenbeschreibung verweist zusätzlich auf ihre Oberklasse.
+
+## `field`: Instanzfeldoffset festlegen (102–106)
+
+`field` prüft die aktuelle Klasse und die Grenze `MAX_FIELDS`. Es trägt dann einen Dictionary-Eintrag mit dem **nächsten Feldindex** ein und erhöht `NFIELDS`. Dieser Index wird später beim Bytecodebefehl `GETFIELD` bzw. `PUTFIELD` verwendet.
+
+```text
+class Base field a field b end
+class Child extends Base field c end
+```
+
+Die Offsets heißen `a=0`, `b=1`, `c=2`, jeweils relativ zum **ersten Feld** des Objekts. In der tatsächlichen Speicherzelle muss noch `+1` für den Klassenzeiger addiert werden. Die Grenze `MAX_FIELDS=16` zählt die **geerbten** Felder bereits mit.
+
+## `bindMethod` und `virtual`: die VTable (107–119)
+
+`bindMethod(name,m)` ordnet einer Instanzmethode zuerst eine Selektor-ID zu. Anschließend sucht es in der VTable **der gerade definierten Klasse**:
+
+- **Selektor bereits vorhanden?** Codeadresse austauschen → *Überschreiben*.
+- **Selektor neu?** Ein Selektor-/Code-Paar anhängen und `NMETHODS` erhöhen.
+- **16 Einträge belegt?** Fehler statt Überschreiben eines fremden Eintrags.
+
+`virtual(cls,id)` führt zur **Laufzeit** die inverse Suche durch: Es bekommt die tatsächliche Klassenadresse und die Selektor-ID, durchläuft höchstens `NMETHODS` Einträge und liefert die Codeadresse zurück. Wird nichts gefunden, liefert es `0`, was `invoke` als fehlende Methode meldet.
+
+Das ist der Kern des Polymorphismus:
+
+```text
+Empfängerobjekt O
+   │ mem[O] = tatsächliche Klassenadresse K
+   ▼
+class K:  [SUPER | NFIELDS | NMETHODS | (id,code) ...]
+                                       │
+                                       ▼
+                                  Methodenbytecode
+```
+
+## `beginMethod`: Signatur lesen und Methodenkopf anlegen (120–135)
+
+Beim Beginn einer Definition unterscheidet der Compiler:
+
+- `: name` außerhalb einer Klasse → globales Wort (`WORD`).
+- `: name` innerhalb einer Klasse → virtuelle Instanzmethode (`METHOD`).
+- `:: name` innerhalb einer Klasse → statische Klassenmethode (`STATIC_METHOD`).
+
+Bei einer Instanzmethode wird automatisch `this` mit lokalem Slot **0** angelegt. Die expliziten Parameter folgen ab Slot 1. `NARGS` enthält diese gesamte Zahl. Die Ergebnisnamen rechts von `--` werden lediglich gezählt und als `NRESULTS` gespeichert.
+
+`allot(CODE)` erzeugt die drei Kopfzellen des Methodencodes. Instanzmethoden werden anschließend durch `bindMethod` in die VTable eingetragen. Die restlichen Opcodes kommen beim folgenden Lesen der Quellwörter dazu.
+
+## `local`: neue lokale Namen vergeben (136–142)
+
+`local name` ist **keine Maschineninstruktion**, sondern eine Compileraktion: Der Compiler definiert einen Dictionary-Eintrag der Art `LOCAL` mit dem nächsten freien Slotindex. Die Grenze von 16 Slots schließt Parameter und `this` ein. Damit können wir im Quellprogramm auf `dup`, `drop` und `swap` verzichten.
+
+Beispiel:
+
+```text
+: demo ( -- )
+    local box
+    new Box to box
+    box send read .
+;
+```
+
+Es werden **keine neuen Stackbefehle** benötigt: `to box` kompiliert zu `STORE slot`, `box` zu `LOAD slot`. Eine lokale Variable hat die Lebensdauer ihres **Frames**, nicht des gesamten Programms. `local` erzeugt keine weiteren Java-Objekte.
+
+## `endMethod`: `RETURN` und Codelänge ergänzen (143–146)
+
+Beim `;` hängt `endMethod` einen `RETURN`-Opcode an. Es berechnet aus dem Unterschied zwischen `here` und dem Beginn des Methodenkopfes, wie viele Zwei-Zellen-Instruktionen kompiliert wurden, und schreibt diese Zahl nach `LENGTH`.
+
+Wichtig: `RETURN` ist ein **echter Laufzeitopcode**. Das Zeichen `;` ist dagegen nur ein *Compilerwort*.
+
+## `control`: Sprungziele später ergänzen (147–154)
+
+`if` erzeugt `IFEQ 0` und merkt die *Adresse seiner Operandenzelle* auf dem Kontrollstack. Bei `else` wird das erste Ziel auf den Anfang des Alternativzweigs gesetzt und ein `GOTO 0` erzeugt. Bei `then` wird das noch offene Ziel auf die aktuelle Codeadresse gesetzt.
+
+Dieses **Backpatching** ist eine grundlegende Compilertechnik: Man kann Bytecode linear erzeugen, obwohl die Zieladresse eines späteren Zweigs noch nicht bekannt ist. Verschachtelte `if`-Blöcke brauchen nur mehrere gemerkte Stellen.
+
+## `access`: Namen in Lade-, Speicher- und Aufrufbefehle übersetzen (155–166)
+
+`access(name,write)` benutzt `resolve`, liest `KIND` und `VALUE` und erzeugt abhängig von der Symbolart **unterschiedlichen Bytecode**:
+
+| Symbolart | Lesen | Schreiben (`to name`) |
+|---|---|---|
+| Lokaler Name | `LOAD slot` | `STORE slot` |
+| Instanzfeld | `LOAD 0`, `GETFIELD offset` | `LOAD 0`, `PUTFIELD offset` |
+| Klassenvariable | `GETSTATIC adresse` | `PUTSTATIC adresse` |
+| Globale Funktion / statische Methode | `INVOKESTATIC adresse` | nicht erlaubt |
+
+Das `LOAD 0` bei einem Feldzugriff holt den Empfänger `this`. Der spätere Interpreter rechnet bei `GETFIELD` mit **`objektadresse + 1 + feldOffset`**. Für Objekte gibt es keinen primitiven Java-`Field`-Gegenstand.
+
+## `word`: der kleine Compiler-Schaltkasten (167–204)
+
+`word(String w)` ist der Dispatcher des Compilers. Er erkennt, was das nächste Quellwort bedeutet:
+
+| Quellwort | Compileraktion |
+|---|---|
+| `+ - * < = . .s str concat` | passenden primitiven Opcode aus `PRIMOP` ausgeben |
+| Zahl wie `17` | `PUSH 17` |
+| Stringliteral | Text sammeln, `intern`, `STR index` |
+| `class`, `end`, `field`, `static` | Klassenstruktur und Klassenmitglieder erzeugen |
+| `:`, `::`, `local`, `;` | Methodenkopf, lokale Slots, RETURN verwalten |
+| `if`, `else`, `then` | `control` aufrufen |
+| `new Klasse` | `NEW klassenadresse` |
+| `send name` | `INVOKEVIRTUAL selektor-id` |
+| `super name` | `LOAD 0`, `INVOKESPECIAL methodenadresse` |
+| `.o` | `INVOKEVIRTUAL toString-ID`, danach `PRINTS` |
+| `to name` oder nackter Name | `access` aufrufen |
+| `see name` | `see` auf dem zugehörigen Methodencode |
+| `trace` | Traceausgabe umschalten |
+
+Der Compiler hat hier **keinen abstrakten Syntaxbaum** und keine komplexe Grammatik. Er liest Wort für Wort und bildet es sofort auf eine einfache Aktion ab. Das erleichtert das Nachvollziehen der Implementierung enorm.
+
+::: {.callout-warning title="Die Sprache ist absichtlich streng und klein"}
+Ein Methodenaufruf über `send` erwartet den **Empfänger oben auf dem Operandenstack**, die Argumente darunter. Deshalb schreibt man `7 b send set`. Es gibt noch keinen Ausdrucksparser mit Punktnotation wie `b.set(7)`. Auch `class`, `field` und `local` müssen an sinnvollen Stellen stehen; die Quelle ist ein didaktischer Compiler, kein vollständig abgesicherter Java-Parser.
+:::
+
+# Teil V – Vom Klassendiagramm zu echten Objekten
+
+## `this` und Instanzfelder: die Java-Parallele
+
+```text
+class Box
+    field x
+    : set ( x -- ) x to this.x ;
+    : read ( -- n ) this.x ;
+end
+```
+
+Die Methode `set` besitzt **zwei benannte Bedeutungen von `x`**:
+
+- Das erste `x` ist ein **Parameter** im lokalen Slot 1. `this` liegt in Slot 0.
+- `this.x` ist ein **Instanzfeld** bei Offset 0 innerhalb des Objekts.
+
+In Java würden wir schreiben:
+
+```java
+class Box {
+    int x;
+    void set(int x) { this.x = x; }
+    int read() { return x; }
+}
+```
+
+Die Java-Syntax ist anders, die Grundidee identisch: **Ein benannter Parameter gehört zum aktuellen Aufruf; das Feld gehört zum Objekt.** Zwei verschiedene Frames können auf dasselbe Objekt zugreifen und dessen Werte verändern.
+
+## Aliasing: Zwei Namen, ein Objekt
+
+```text
+: demo ( -- )
+    local first
+    local second
+    new Box to first
+    first to second
+    21 second send set
+    first send read .
+;
+```
+
+Beide lokalen Namen speichern dieselbe **Integer-Objektadresse**. Deshalb liefert der letzte Aufruf `21`, obwohl die Änderung über `second` vorgenommen wurde. Die Speicherlupe zeigt dasselbe Prinzip: `new Child` hinterlässt eine Objektadresse im Stack, nicht den gesamten Objektinhalt.
+
+::: {.callout-tip title="Merksatz für Java"}
+Eine Referenz kopieren bedeutet **nicht**, ein neues Objekt zu erzeugen. MiniForth zeigt das besonders direkt: `STORE` kopiert nur eine Integer-Zelle.
+:::
+
+## Klassenmethoden, Klassenvariablen und `make`
+
+```text
+class Counter
+    field value
+    static created
+
+    :: make ( n -- obj )
+        local o
+        created 1 + to created
+        new Counter to o
+        n o send init
+        o
+    ;
+
+    : init ( n -- ) n to value ;
+    : toString ( -- s ) "Counter(" value str concat ")" concat ;
+end
+```
+
+Die Klassenvariable `created` besitzt nur **eine eigene Zelle** im Heap. Der Code `Counter.make` ist eine **selbst definierte statische Methode**, die ein Objekt erzeugt und zurückgibt. Das Wort `make` ist nicht im Compiler eingebaut. Ein `new` liefert die Adresse eines leeren Objekts; `init` setzt anschließend dessen Felder.
+
+Wenn eine Unterklasse `static created` nicht erneut deklariert, arbeitet ein geerbter Zugriff auf **dieselbe** Speicherzelle der Oberklasse. Statische Methoden werden fest adressiert, nicht über die virtuelle Methodentabelle gesucht.
+
+## Vererbung von Feldern und Polymorphie von Methoden
+
+Im Beispiel `beispiele/17_dispatch_virtual.mf` besitzt `Base` die Methode `twice`, die zweimal `this send inc` ausführt. `Child` überschreibt nur `inc`. Weil `send` **zur Laufzeit** über die tatsächliche Klasse des Empfängers sucht, wirkt die geerbte Methode `twice` auf einem Child-Objekt anders als auf einem Base-Objekt.
+
+Eine VTable ist deshalb keine Sammlung von Java-Funktionen. Sie speichert **numerische Selektoren und Bytecodeadressen** in unserem `int[]`.
+
+```text
+Base-VTable:   (inc, Base.inc)      (twice, Base.twice)
+Child-VTable:  (inc, Child.inc)     (twice, Base.twice)
+```
+
+Die Methode `Base.twice` wird **nicht neu kompiliert**. Sie ruft bei jedem `send inc` den Slot der tatsächlichen Objektklasse auf. Genau das ist **dynamische Bindung**.
+
+## Was `super` anders macht
+
+Die Anweisung `super inc` wird **bereits beim Übersetzen** zur konkreten Bytecodeadresse der Oberklassenmethode aufgelöst. Der Compiler schreibt `LOAD 0` und `INVOKESPECIAL adresse`. Ein dynamisches Nachschlagen in der VTable findet für diesen Aufruf **nicht** statt.
+
+Damit können wir bewusst die Implementierung der Oberklasse wiederverwenden. Ein typisches Muster lautet:
+
+```text
+class Child extends Base
+    : inc ( -- ) super inc super inc ;
+end
+```
+
+**Java-Vergleich:** Ein überschriebenes `inc()` wird bei `obj.inc()` dynamisch gebunden, `super.inc()` wählt die Oberklassenimplementierung. Unser MiniForth zeigt die entsprechende Speicheradressentscheidung unmittelbar.
+
+## Zeichenketten, `toString` und `.o`
+
+```text
+class Animal
+    : toString ( -- s ) "Animal" ;
+end
+class Cat extends Animal
+    : toString ( -- s ) "Cat: " super toString concat ;
+end
+new Animal .o
+new Cat .o
+```
+
+Bestätigte Ausgabe:
+
+```text
+Animal
+Cat: Animal
+```
+
+`toString` ist eine **normale virtuelle Methode**, die einen **String-Poolindex** zurückgibt. `.o` ist nur eine kleine Übersetzungshilfe: `INVOKEVIRTUAL` mit der Selektor-ID von `toString`, gefolgt von `PRINTS`.
+
+Der Vorteil ist didaktisch: Die Studierenden können **polymorphe Ausgaben sehen**, ohne das zugrunde liegende Datenlayout zu verstecken. Das ist nicht die `Object.toString()`-Methode der Java-Bibliothek; wir haben sie in MiniForth selbst definiert.
+
+# Teil VI – Die Ausführung vorbereiten: Frames und Debug-Werkzeuge
+
+## `push` und `pop`: der Operandenstack des aktiven Frames (205–213)
+
+`push` liest `DEPTH`, schreibt den Wert in `mem[fp+STACK+depth]` und erhöht die Tiefe. `pop` reduziert die Tiefe und liest die oberste Zelle zurück. Beide Operationen prüfen auf Überlauf beziehungsweise Unterlauf.
+
+Der **Operandenstack liegt in einem Frame** – nicht in einem separaten Java-Stackobjekt. Das ist wichtig, denn jeder Methodenaufruf besitzt seinen **eigenen** Stack und eigene lokale Slots.
+
+## `invoke`: einen Frame anlegen (214–222)
+
+Die Parameter `method` und `self` haben unterschiedliche Rollen:
+
+- `method` ist die Bytecodeadresse des **Methodenkopfes**.
+- `self` ist die Objektadresse des Empfängers, oder `0` bei statischen Methoden und globalen Wörtern.
+
+`invoke` reserviert den nächsten Frame bei `fp−FRAME` und setzt ihn zunächst auf Null. Dann trägt die Methode `OLD_FP`, `RET_IP` und `FMETHOD` ein. Bei einer Instanzmethode schreibt sie `self` in **Local 0**, danach wandern die expliziten Parameter vom Stack des Aufrufers in die folgenden lokalen Slots. Schließlich wird `fp` auf den neuen Frame und `ip` auf `method+CODE` gesetzt.
+
+```text
+Aufrufer:          [argument1, argument2, obj]    ← obj oben
+                                    │
+                           INVOKEVIRTUAL
+                                    ▼
+Neuer Frame:       Local 0 = obj  (this)
+                   Local 1 = argument1
+                   Local 2 = argument2
+                   Operandenstack = []
+```
+
+Der entscheidende Java-Bezug: Der Compiler einer Hochsprache kennt die Parameterreihenfolge; die Laufzeit implementiert sie als feste Konvention über numerische Slots.
+
+## `ret`: Ergebnisse zurückgeben und den alten Frame aktivieren (223–229)
+
+`ret` liest `NRESULTS` aus dem Methodenkopf und vergleicht diesen Wert mit `DEPTH`. Stimmen die Zahlen nicht überein, wirft die Maschine einen Fehler. Danach setzt sie `ip` auf `RET_IP`, `fp` auf `OLD_FP` und kopiert alle Ergebnisse zurück auf den Operandenstack des Aufrufers.
+
+Das funktioniert ausdrücklich auch mit **mehreren Ergebnissen**, etwa:
+
+```text
+: distribute ( n -- x y z ) n n 2 * n 3 * ;
+: sum3 ( a b c -- r ) a b + c + ;
+5 distribute sum3 .
+```
+
+Ausgabe: `30`. In Java würden wir häufig ein Objekt oder Array verwenden, um mehrere Werte zurückzugeben; MiniForth kann mehrere Stackwerte als wohldefinierten Rückgabevertrag übertragen.
+
+## `methodName`: Adresse wieder in einen Namen übersetzen (230–240)
+
+Für die **Anzeige** sucht `methodName` die Codeadresse im Dictionary und formt daraus `Klasse.methode` oder einen globalen Namen. Im eigentlichen Interpreter ist ein Name **nicht notwendig**, solange die Codeadresse bekannt ist.
+
+## `show`: die gesamte Framekette ausgeben (241–255)
+
+Ist `trace` eingeschaltet, gibt `show` beim Aufruf und Rücksprung alle aktiven Frames aus. Die Schleife folgt der `OLD_FP`-Kette. Für jeden Frame zeigt sie Parameter/Locals und die aktuellen Operandwerte.
+
+```text
+: down ( n -- result )
+    n 0 = if 0 else n 1 - down 1 + then
+;
+trace
+2 down .
+trace
+```
+
+Die **bestätigte vollständige Ausgabe** steht in `beispiele/09_trace_recursion.out.txt`. Dabei sieht man in den drei aktiven `down`-Frames verschiedene lokale Werte `2`, `1`, `0`, obwohl es sich jeweils um denselben Methodencode handelt.
+
+## `see`: Bytecode mit Adressen darstellen (256–260)
+
+`see` liest beim Methodenkopf `LENGTH` und geht mit Schrittweite 2 durch alle Anweisungen: **Opcode-Nummer → Name** aus `OPCODES`, dahinter der gespeicherte Operand. `see` führt die Methode **nicht** aus und erzeugt keinen zusätzlichen Frame.
+
+Die in Beispielen beobachteten absoluten Adressen hängen stets von der **Reihenfolge der vorher definierten Klassen und Methoden** ab. Deshalb nutzen wir kleine, voneinander unabhängige `.mf`-Dateien.
+
+# Teil VII – Übungen und kleine Anwendungen
+
+## 35 geprüfte Beispiele: vom Wort zur Objektwelt
+
+Die folgenden Dateien sind **voneinander unabhängig**. Jede wird in einer frischen MiniForth-Maschine ausgeführt. Die zugehörige `.out.txt` enthält die echte Ausgabe der **mitgelieferten unveränderten 64K-Version**. Bitte nicht alle Beispiele in eine Datei hintereinander kopieren: Klassennamen und absolute Codeadressen können sonst kollidieren oder sich verschieben.
+
+| Nr. | Thema | Datei |
+|---:|---|---|
+| 01 | Operandenstack, Arithmetik, Vergleiche | [01_stapel_rechnen.mf](beispiele/01_stapel_rechnen.mf) · [Ausgabe](beispiele/01_stapel_rechnen.out.txt) |
+| 02 | globales Wort, `see`, `LOAD` | [02_square_bytecode.mf](beispiele/02_square_bytecode.mf) · [Ausgabe](beispiele/02_square_bytecode.out.txt) |
+| 03 | benannte Parameter und Ausdrücke | [03_named_parameters.mf](beispiele/03_named_parameters.mf) · [Ausgabe](beispiele/03_named_parameters.out.txt) |
+| 04 | `local`, `STORE`, `LOAD` | [04_local_variable.mf](beispiele/04_local_variable.mf) · [Ausgabe](beispiele/04_local_variable.out.txt) |
+| 05 | mehrere Rückgabewerte | [05_multiple_results.mf](beispiele/05_multiple_results.mf) · [Ausgabe](beispiele/05_multiple_results.out.txt) |
+| 06 | `if`, `else`, Sprung-Patching | [06_if_else_patch.mf](beispiele/06_if_else_patch.mf) · [Ausgabe](beispiele/06_if_else_patch.out.txt) |
+| 07 | verschachtelter Kontrollfluss | [07_nested_if.mf](beispiele/07_nested_if.mf) · [Ausgabe](beispiele/07_nested_if.out.txt) |
+| 08 | rekursive Fakultät | [08_recursive_fact.mf](beispiele/08_recursive_fact.mf) · [Ausgabe](beispiele/08_recursive_fact.out.txt) |
+| 09 | mehrere Frames und `trace` | [09_trace_recursion.mf](beispiele/09_trace_recursion.mf) · [Ausgabe](beispiele/09_trace_recursion.out.txt) |
+| 10 | `new`, Instanzinitialisierung | [10_object_initialization.mf](beispiele/10_object_initialization.mf) · [Ausgabe](beispiele/10_object_initialization.out.txt) |
+| 11 | zwei Instanzfelder | [11_box_fields.mf](beispiele/11_box_fields.mf) · [Ausgabe](beispiele/11_box_fields.out.txt) |
+| 12 | Objektreferenzen und Aliasing | [12_local_aliasing.mf](beispiele/12_local_aliasing.mf) · [Ausgabe](beispiele/12_local_aliasing.out.txt) |
+| 13 | Parameter gegen `this.x` | [13_parameter_shadow.mf](beispiele/13_parameter_shadow.mf) · [Ausgabe](beispiele/13_parameter_shadow.out.txt) |
+| 14 | statische Fabrik, Klassenvariable | [14_make_static_counter.mf](beispiele/14_make_static_counter.mf) · [Ausgabe](beispiele/14_make_static_counter.out.txt) |
+| 15 | geerbte Klassenvariable | [15_static_inheritance.mf](beispiele/15_static_inheritance.mf) · [Ausgabe](beispiele/15_static_inheritance.out.txt) |
+| 16 | geerbte Instanzfelder | [16_inheritance_fields.mf](beispiele/16_inheritance_fields.mf) · [Ausgabe](beispiele/16_inheritance_fields.out.txt) |
+| 17 | dynamische Bindung / `send` | [17_dispatch_virtual.mf](beispiele/17_dispatch_virtual.mf) · [Ausgabe](beispiele/17_dispatch_virtual.out.txt) |
+| 18 | `super`, `INVOKESPECIAL` | [18_special_super.mf](beispiele/18_special_super.mf) · [Ausgabe](beispiele/18_special_super.out.txt) |
+| 19 | `toString`, `.o`, `super` | [19_polymorphic_string.mf](beispiele/19_polymorphic_string.mf) · [Ausgabe](beispiele/19_polymorphic_string.out.txt) |
+| 20 | Interning, `str`, `concat`, `.s` | [20_strings_intern.mf](beispiele/20_strings_intern.mf) · [Ausgabe](beispiele/20_strings_intern.out.txt) |
+| 21 | Stringindex im lokalen Slot | [21_local_string.mf](beispiele/21_local_string.mf) · [Ausgabe](beispiele/21_local_string.out.txt) |
+| 22 | `GETFIELD` und `PUTFIELD` | [22_see_field.mf](beispiele/22_see_field.mf) · [Ausgabe](beispiele/22_see_field.out.txt) |
+| 23 | Locals im Trace | [23_trace_local.mf](beispiele/23_trace_local.mf) · [Ausgabe](beispiele/23_trace_local.out.txt) |
+| 24 | polymorphe Cons-Liste | [24_library_list.mf](beispiele/24_library_list.mf) · [Ausgabe](beispiele/24_library_list.out.txt) |
+| 25 | Ausdrucksbaum und `eval` | [25_expression_tree.mf](beispiele/25_expression_tree.mf) · [Ausgabe](beispiele/25_expression_tree.out.txt) |
+| 26 | SVG mit Integer-Koordinaten | [26_svg_line.mf](beispiele/26_svg_line.mf) · [Ausgabe](beispiele/26_svg_line.out.txt) |
+| 27 | erster Methodenblock bei Adresse 8192 | [27_memory_first_word.mf](beispiele/27_memory_first_word.mf) · [Ausgabe](beispiele/27_memory_first_word.out.txt) |
+| 28 | mehrere lokale Slots | [28_many_local_slots.mf](beispiele/28_many_local_slots.mf) · [Ausgabe](beispiele/28_many_local_slots.out.txt) |
+| 29 | ausdrückliches `this.x` | [29_explicit_this.mf](beispiele/29_explicit_this.mf) · [Ausgabe](beispiele/29_explicit_this.out.txt) |
+| 30 | rekursive Klassenmethode | [30_methodname_recursion.mf](beispiele/30_methodname_recursion.mf) · [Ausgabe](beispiele/30_methodname_recursion.out.txt) |
+| 31 | statische Methode ruft globales Wort | [31_global_word_and_static.mf](beispiele/31_global_word_and_static.mf) · [Ausgabe](beispiele/31_global_word_and_static.out.txt) |
+| 32 | Objektzustand ändern und ausgeben | [32_field_access_more.mf](beispiele/32_field_access_more.mf) · [Ausgabe](beispiele/32_field_access_more.out.txt) |
+| 33 | drei Rückgabewerte | [33_return_many.mf](beispiele/33_return_many.mf) · [Ausgabe](beispiele/33_return_many.out.txt) |
+| 34 | lokale Werte ohne Stack-Shuffler | [34_no_shufflers.mf](beispiele/34_no_shufflers.mf) · [Ausgabe](beispiele/34_no_shufflers.out.txt) |
+| 35 | großes integriertes Demo | [35_big_demo.mf](beispiele/35_big_demo.mf) · [Ausgabe](beispiele/35_big_demo.out.txt) |
+
+### Kleine Bibliothek: `List`, `Nil` und `Cons`
+
+In `beispiele/24_library_list.mf` werden drei Klassen aufgebaut. `Nil` repräsentiert eine leere Liste, `Cons` enthält die Felder `head` und `tail`. Die Methoden `sum`, `length` und `toString` sind **polymorph**: Im Rekursionsende führt dieselbe Methodenbezeichnung zu einer anderen Implementierung.
+
+```text
+: sum ( -- n ) head tail send sum + ;
+```
+
+Diese Zeile stammt aus `Cons`. Bei `tail send sum` entscheidet die Objektklasse, ob erneut `Cons.sum` oder schließlich `Nil.sum` ausgeführt wird. Es gibt keine Spezialbehandlung für Listen in der VM.
+
+Das Programm bestätigt eine Liste `1 → 2 → 3 → Nil` mit folgender Ausgabe:
+
+```text
+6
+3
+Cons(1,Cons(2,Cons(3,Nil)))
+```
+
+### Ausdrucksbäume: `eval` und Vererbung
+
+In `beispiele/25_expression_tree.mf` besitzen `Num` und `Add` dieselbe virtuelle Methode `eval`. Ein `Num`-Objekt liefert seine gespeicherte Zahl; ein `Add`-Objekt ruft `eval` auf seinen zwei Teilobjekten auf und addiert die Ergebnisse. Der Aufrufer muss den konkreten Klassentyp nicht abfragen.
+
+**Das ist der eigentliche Mehrwert der Objektorientierung:** Man kann ein allgemeines Protokoll `eval` definieren und später neue Knotentypen ergänzen, ohne den Aufrufer umzuschreiben.
+
+Die verifizierte Ausgabe des kleinen Beispielbaums `Add(Num(2),Num(3))` ist:
+
+```text
+5
+(2+3)
+```
+
+### SVG: sichtbar werden, ohne `double`
+
+`beispiele/26_svg_line.mf` setzt mehrere internierte Zeichenketten mit Integerkoordinaten zu SVG-Zeilen zusammen. Die tatsächlich erzeugten drei Ausgabelinien sehen so aus:
+
+```xml
+<svg xmlns='http://www.w3.org/2000/svg' width='50' height='50'>
+<line x1='1' y1='2' x2='30' y2='40' stroke='black'/>
+</svg>
+```
+
+Das Ergebnis lässt sich in eine `.svg`-Datei umleiten:
+
+```bash
+java MiniForth beispiele/26_svg_line.mf > linie.svg
+```
+
+Das ist ein Ausblick auf eine kleine **Turtle-Bibliothek**. Für achsenparallele Geometrie benötigen wir keine Gleitkommazahlen.
+
+## Verständnisfragen und Aufgaben
+
+**Aufgabe A – Speicher angeben.** Für eine Klasse mit drei Instanzfeldern und zwei virtuellen Methoden: Wie viele Zellen beansprucht die *Klassenbeschreibung*? Wie viele ein *Objekt* dieser Klasse? Wie viele ein einzelner Frame?
+
+**Aufgabe B – Dictionary nachbauen.** Zeichne den ersten Eintrag für `class Base` beginnend bei Adresse 128. Trage `LINK`, `KIND`, `OWNER`, `VALUE`, `LEN` und die vier Zeichen ein. Was wird bei einem weiteren neuen Wörterbucheintrag zum `LINK`?
+
+**Aufgabe C – `this` gegen Parameter.** Erkläre die Speicheradressen bei `x to this.x` innerhalb von `: set ( x -- ) ... ;`. Welche Operation berührt den Frame, welche das Objekt?
+
+**Aufgabe D – Polymorphie.** Weshalb erreicht eine geerbte Methode `twice` in einem Child-Objekt dessen überschriebenes `inc`? Welche Rolle spielt dabei `virtual`?
+
+**Aufgabe E – dynamisch vs. fest.** Vergleiche die beim Übersetzen entstandenen Bytecodes von `this send inc` und `super inc`. Wo wird die Codeadresse endgültig bestimmt?
+
+**Aufgabe F – Frame und Rekursion.** Bestimme die drei n-Werte im tiefsten Aufruf von `2 down .`. Wie viele Frames sind einschließlich Hauptprogramm gleichzeitig aktiv? Wo liegt in jedem der Wert `n`?
+
+**Aufgabe G – `local` statt Shuffler.** Schreibe eine Methode, die ein `Box`-Objekt erzeugt, es zweimal verändert und zuletzt ausgibt, ohne `dup`, `drop` oder `swap`. Warum brauchen wir dafür weiterhin den *internen* Operandenstack?
+
+**Aufgabe H – Kapazitäten.** Wieviele Klassen, Methoden und Objekte passen in 64K? Warum kann man die Frage **nicht** nur mit `65536 / 35` beantworten? Welche weiteren Grenzen müssen bedacht werden?
+
+### Kontrollhinweise zu ausgewählten Aufgaben
+
+A: 35 Zellen für die Klassenbeschreibung, 4 Zellen für das Objekt, 96 Zellen pro Frame. Der Methodencode selbst benötigt zusätzlich Platz.
+
+B: Erster Eintrag `128…136`, Link `0`, Art `CLASS=1`, Owner `0`, Wert `8192`, Länge `4` und die vier Zeichen. Ein nachfolgender Eintrag enthält im `LINK` die Adresse `128`, sofern kein anderer Eintrag dazwischen definiert wurde.
+
+C: Der Parameter `x` liegt in einem lokalen Slot des Frames, bei Instanzmethoden normalerweise in Slot 1. `this.x` benutzt den Objektzeiger aus Local 0 und schreibt mit `PUTFIELD` an `Objektadresse+1+FeldOffset`.
+
+D/E: `INVOKEVIRTUAL` hat die Selektor-ID, die konkrete Adresse kommt erst über den Klassenzeiger des Objekts. `INVOKESPECIAL` kennt die feste Oberklassen-Codeadresse bereits.
+
+F: `down(2)`, `down(1)` und `down(0)` sind gleichzeitig aktiv; dazu kommt der Hauptframe, also vier Frames. In jedem Aufruf liegt der eigene Parameter `n` im lokalen Slot 0.
+
+G: Eine mögliche Lösung ist ein Methodenentwurf mit benannter Objektreferenz. Die zwei Änderungen erfolgen durch `set` und `add`:
+
+```text
+class Box
+    field x
+    : set ( n -- ) n to x ;
+    : add ( n -- ) x n + to x ;
+    : toString ( -- s ) "Box(" x str concat ")" concat ;
+end
+: demo ( -- )
+    local box
+    new Box to box
+    3 box send set
+    4 box send add
+    box .o
+;
+demo
+```
+
+Geprüfte Ausgabe: `Box(7)`. Die Objektadresse liegt zwischen den Aufrufen im lokalen Slot `box`; während der Auswertung von `x n +` bleibt der **interne Operandenstack** notwendig.
+
+H: Die Menge hängt von Klassengröße, Dictionary-Einträgen, Methodencodelänge, statischen Werten, Objekten und gleichzeitig benötigten Frames ab; bei Rekursion wachsen die Frames vom oberen Speicherende herunter.
+
+# Teil VIII – Zum Schluss die eigentliche Maschine: `run()`
+
+## Der kleinste entscheidende Java-Loop (Zeilen 261–294)
+
+Wir haben nun alle Bauteile verstanden. **Die Laufzeitmaschine selbst ist nur eine Schleife über Opcode und Operand.** Sie kennt keine Klassennamen, keinen Parameternamen `x`, kein Java-`this`, kein `if` und keine Wortdefinitionen. Sie interpretiert die bereits zusammengestellten Zahlen.
+
+Hier ist die **vollständige, unveränderte Methode `run()`**, direkt aus der beigefügten Java-Datei:
+
+```java
+    void run() {
+        while (true) {
+            int op=mem[ip++], arg=mem[ip++];
+            if (op==HALT) return;
+            else if (op==PUSH) push(arg);
+            else if (op==ADD) push(pop()+pop());
+            else if (op==SUB) { int y=pop(); push(pop()-y); }
+            else if (op==MUL) push(pop()*pop());
+            else if (op==LESS) { int y=pop(); push(pop()<y ? 1 : 0); }
+            else if (op==EQUAL) push(pop()==pop() ? 1 : 0);
+            else if (op==PRINT) System.out.println(pop());
+            else if (op==LOAD) push(mem[fp+LOCAL0+arg]);
+            else if (op==STORE) mem[fp+LOCAL0+arg]=pop();
+            else if (op==GETFIELD) { int o=pop(); push(mem[o+1+arg]); }
+            else if (op==PUTFIELD) { int o=pop(); mem[o+1+arg]=pop(); }
+            else if (op==GETSTATIC) push(mem[arg]);
+            else if (op==PUTSTATIC) mem[arg]=pop();
+            else if (op==NEW) { int o=allot(1+mem[arg+NFIELDS]); mem[o]=arg; push(o); }
+            else if (op==VIRTUAL) {
+                int o=pop();
+                if (o==0) throw new IllegalStateException("Null-Empfaenger");
+                int m=virtual(mem[o],arg); invoke(m,o);
+            }
+            else if (op==SPECIAL) invoke(arg,pop());
+            else if (op==CALL) invoke(arg,0);
+            else if (op==IFEQ) { if (pop()==0) ip=arg; }
+            else if (op==GOTO) ip=arg;
+            else if (op==RETURN) ret();
+            else if (op==STR) push(arg);
+            else if (op==ITOS) push(intern(""+pop()));
+            else if (op==STRCAT) { int r=pop(); push(intern(strings[pop()]+strings[r])); }
+            else if (op==PRINTS) System.out.println(strings[pop()]);
+        }
+    }
+```
+
+### Der Programmzähler `ip` (261–264)
+
+Bei jedem Schleifendurchgang liest der Interpreter zwei Zellen:
+
+```java
+int op=mem[ip++], arg=mem[ip++];
+```
+
+Die erste Zelle ist die Opcode-Nummer, die zweite ihr Operand. Danach zeigt `ip` schon auf die **nächste** Instruktion. Ein Sprung oder Methodenaufruf setzt `ip` ausdrücklich auf eine andere Adresse.
+
+### Gruppe 1: rechnen, vergleichen und ausgeben
+
+`PUSH` legt `arg` ab, `ADD` und `MUL` entfernen jeweils zwei Werte und legen einen neuen ab. Bei `SUB` und `LESS` ist die Reihenfolge wichtig: Das zuletzt entfernte Element ist der rechte Operand. `EQUAL` liefert `1` oder `0`, `PRINT` gibt eine Ganzzahl aus.
+
+Beispiel: `2 3 + .` führt nacheinander `PUSH 2`, `PUSH 3`, `ADD`, `PRINT` aus. Der Aufrufstack bleibt dabei auf dem Hauptframe.
+
+### Gruppe 2: lokale Slots, Objektfelder und statische Variablen
+
+| Opcode | Speicherzugriff | Bedeutung |
+|---|---|---|
+| `LOAD arg` | `mem[fp+LOCAL0+arg]` | lokalen Slot auf den Stack legen |
+| `STORE arg` | `mem[fp+LOCAL0+arg]` | Wert vom Stack in lokalen Slot schreiben |
+| `GETFIELD arg` | `mem[obj+1+arg]` | Feld aus einem Objektblock lesen |
+| `PUTFIELD arg` | `mem[obj+1+arg]` | Feld in einem Objektblock setzen |
+| `GETSTATIC arg` | `mem[arg]` | absolute Klassenvariablenzelle lesen |
+| `PUTSTATIC arg` | `mem[arg]` | absolute Klassenvariablenzelle schreiben |
+
+Das ist der **physische Kern** unserer bisherigen Theorie. Es gibt keine besondere Java-Instanzfeldklasse: `GETFIELD` addiert lediglich Zahlen. `this` wurde bereits beim Aufruf als Objektadresse in Slot 0 eingetragen.
+
+### Gruppe 3: Objekte erzeugen
+
+```java
+else if (op==NEW) {
+    int o=allot(1+mem[arg+NFIELDS]);
+    mem[o]=arg;
+    push(o);
+}
+```
+
+`arg` ist die **Klassenadresse**, `mem[arg+NFIELDS]` die Zahl der Instanzfelder. Die Maschine reserviert Platz für **Klassenzeiger plus alle Felder**, schreibt die Klassenadresse an den Beginn und legt die Objektadresse auf den Stack. Das ist alles, was `new` in MiniForth benötigt.
+
+### Gruppe 4: virtuelle, spezielle und statische Aufrufe
+
+```java
+else if (op==VIRTUAL) {
+    int o=pop();
+    if (o==0) throw new IllegalStateException("Null-Empfaenger");
+    int m=virtual(mem[o],arg); invoke(m,o);
+}
+else if (op==SPECIAL) invoke(arg,pop());
+else if (op==CALL) invoke(arg,0);
+```
+
+Drei Wege zu **derselben** `invoke`-Methode:
+
+1. `VIRTUAL`: Objekt vom Stack lesen, dessen tatsächliche Klasse über `mem[o]` ermitteln, Methode über deren VTable auswählen, `this=o` übergeben.
+2. `SPECIAL`: Eine vom Compiler bereits bestimmte Methodencodeadresse verwenden; der Empfänger liegt auf dem Stack. Das ist `super`.
+3. `CALL`: Eine fest bestimmte globale oder statische Methode aufrufen; `self=0` signalisiert **kein `this`**.
+
+Danach unterscheidet die eigentliche Methodenausführung nicht mehr zwischen diesen Aufrufarten. **Der Unterschied liegt allein in der Auswahl der Codeadresse.**
+
+### Gruppe 5: Sprünge und Rückkehr
+
+`IFEQ` entfernt den Wahrheitswert vom Stack und setzt `ip` nur dann auf das Sprungziel, wenn der Wert `0` ist. `GOTO` setzt `ip` immer neu. `RETURN` ruft `ret()` auf, wodurch der vorherige Frame mit seinen lokalen Variablen wieder aktiv wird.
+
+So entstehen **if, else, Rekursion und Methodenrückgaben** vollständig aus wenigen elementaren Laufzeitoperationen.
+
+### Gruppe 6: Strings
+
+`STR` legt die beim Übersetzen ermittelte Stringnummer auf den Stack. `ITOS` wandelt eine Zahl in einen Java-String um und internisiert sie. `STRCAT` holt zwei Indizes, verknüpft ihre Java-Strings und internisiert das Ergebnis. `PRINTS` druckt den Text am angegebenen Index. `.o` nutzt diese Befehle **zusammen mit virtuellem Aufruf**.
+
+### Welche Methode startet die ganze Maschine? `main` (295–300)
+
+Die verbleibenden Java-Zeilen erzeugen eine `MiniForth`-Instanz, öffnen eine Datei oder die Standardeingabe, konfigurieren den `Scanner` und rufen wiederholt `word(next())` auf. Während einer Wortdefinition erzeugt `word` Bytecode; außerhalb führt `emit` einzelne Opcodes sofort mit `run()` aus.
+
+**Damit schließt sich der Kreis:** Der Java-Code übersetzt Text in Zahlen, legt Klassen, Methoden und Objekte in festen Layouts ab und interpretiert diese Zahlen. Die sichtbare Objektorientierung entsteht aus der Abfolge **`define` → `resolve` → `emit` → `invoke` → `run`**, ohne dass die VM selbst Java-Objekte für die MiniForth-Daten benötigt.
+
+::: {.callout-important title="Unser Schlussgedanke"}
+**MiniForth ist keine vollständige JVM und kein klassisches Forth mehr.** Es ist eine kleine, objektorientierte Sprache mit benannten lokalen Werten über einer stackorientierten Ausführungsmaschine. Die Sprache kann dadurch lesbar sein, während ihr Kern – ein `int[]`, ein paar Zeiger und eine Schleife – für Studierende nachvollziehbar bleibt.
+:::
+
+---
+
+*Quellen innerhalb dieses Lehrpakets: `MiniForth.java` (300 Zeilen), `MemoryTour.java` mit `MemoryTour.out.txt`, alle 35 `beispiele/*.mf` und zugehörige `.out.txt`, die Tests `MemoryLimitsTests.java` sowie `run_tests.py`. Alle absoluten Adressen und dokumentierten Ausgaben wurden mit der **beigelegten 64K-Version** überprüft. Das Rendern des Quarto-Texts selbst verändert oder startet MiniForth nicht.*
