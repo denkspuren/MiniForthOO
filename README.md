@@ -27,11 +27,9 @@ Sie finden hier drei separate Verzeichnisse. Alles dreht sich um `MiniForth.java
 
 **Anwendungen**: Hier finden sich Beispielprogramme, die zeigen, was man mit MiniForth sinnvolles programmieren kann. Eine schöne Übung ist: Wie sieht die Entsprechung als Java-Programm aus? Schreiben Sie die Programme mal in Java.
 
-Schauen Sie sich um. Sehr beeindruckend sind die Turtle-Grafiken.
+Schauen Sie sich um. Sehr beeindruckend sind zum Beispiel die [Turtle-Grafiken](./MiniForth-Anwendungen/beispiele/06-turtle.out.svg).
 
-![](./MiniForth-Anwendungen/beispiele/06-turtle.out.svg)
-
-Oder wollen Sie Nim spielen?
+![Link zu den Turtle-Grafiken](./MiniForth-Anwendungen/beispiele/06-turtle.out.svg)
 
 **Explorer**: Man kann MiniForth-Programme bei der Ausführung tracen (mitschreiben) und sich die Ausführung im Explorer anschauen und nachvollziehen. Der Explorer zeigt Ihnen das Innenleben bei der Ausführung eines Programms. Das soll Ihnen helfen, die Interna zu verstehen und nachzuvollziehen. Das Lehrskript aus dem Lernpaket und der Explorer sollten gut zueinander passen.
 
