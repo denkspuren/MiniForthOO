@@ -1,15 +1,13 @@
 # MiniForth OO: Eine OO-Sprache in 300 Zeilen Java
 
-Eine komplette objektorientierte Sprache mit Compiler und ByteCode-Maschine in 300 Zeilen Java? Nur mit Ganzzahlen, Strings, Arrays und Methoden und ohne Objekte? Das geht! Alles ist nur eine Sache der Organisation eines 64K großen Speichers; 64K sind 65536 Speicherzellen, die jeweils ein `int` aufnehmen können. Darin spielt sich alles ab.
+Eine komplette objektorientierte Sprache mit Compiler und ByteCode-Maschine in 300 Zeilen Java? Der Java-Code nutzt nur Ganzzahlen, Strings, Arrays und Methoden, keine Objekte? Ja, das geht! Alles ist nur eine Sache der Organisation eines 64K großen Speichers; 64K sind 65536 Speicherzellen, die jeweils ein `int` aufnehmen können. Darin spielt sich alles ab.
 
 Wenn Sie einen direkten Einstieg suchen, legen Sie hier los:
 
 * Der Code [MiniForth.java](./MiniForth-Lehrpaket-64K/MiniForth.java)
 * Ein Skript zum Verständnis des Codes: [MiniForth-Lehrskript-64K.html](https://raw.githack.com/denkspuren/MiniForthOO/main/MiniForth-Lehrpaket-64K/MiniForth-Lehrskript-64K.html) (zu finden im Lehrpaket)
 
-
-
-## Mehr lernen mit weniger geht kaum
+## Mehr lernen mit weniger Code geht kaum
 
 Die Umsetzung von MiniForth ist sehr kompakt und dicht, und dennoch baut die Sprache die Objektorientierung von Java nach. Die ByteCode-Maschine hat sogar Verwandschaft mit der JVM (Java Virtual Machine). 
 
