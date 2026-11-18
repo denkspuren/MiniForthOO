@@ -5,7 +5,7 @@ Eine komplette objektorientierte Sprache mit Compiler und ByteCode-Maschine in 3
 Wenn Sie einen direkten Einstieg suchen, legen Sie hier los:
 
 * Der Code [MiniForth.java](./MiniForth-Lehrpaket-64K/MiniForth.java)
-* Ein Skript zum Verständnis des Codes: [MiniForth-Lehrskript-64K.html](./MiniForth-Lehrpaket-64K/MiniForth-Lehrskript-64K.html)
+* Ein Skript zum Verständnis des Codes: [MiniForth-Lehrskript-64K.html](https://raw.githack.com/denkspuren/MiniForthOO/main/MiniForth-Lehrpaket-64K/MiniForth-Lehrskript-64K.html) (zu finden im Lehrpaket)
 
 
 
