@@ -6,9 +6,11 @@ Wenn Sie einen direkten Einstieg suchen, legen Sie hier los:
 
 * Der Code [MiniForth.java](./MiniForth-Lehrpaket-64K/MiniForth.java)
 * Ein Skript zum Verständnis des Codes: [MiniForth-Lehrskript-64K.html](https://raw.githack.com/denkspuren/MiniForthOO/main/MiniForth-Lehrpaket-64K/MiniForth-Lehrskript-64K.html) (zu finden im Lehrpaket)
-* Der Viewer zum Explorer mit einem geladenen Beispiel: [viewer.html](https://raw.githack.com/denkspuren/MiniForthOO/main/MiniForth-Explorer/viewer.html)
+* Der Viewer zum Explorer mit einem geladenen Beispiel (siehe auch das nachstehende Bild): [viewer.html](https://raw.githack.com/denkspuren/MiniForthOO/main/MiniForth-Explorer/viewer.html)
 
 *Beachte*: Zur Ansicht der HTML-Dateien wird https://raw.githack.com/ genutzt. GitHub selber zeigt HTML-Dateien nur als Quellcode, nicht als Ansicht an.
+
+![Der Viewer](/Screenshot_Viewer.png)
 
 ## Mehr lernen mit weniger Code geht kaum
 
